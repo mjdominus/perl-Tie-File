@@ -1,0 +1,8 @@
+lib/Tie/File.pm
+Makefile.PL
+t/01_gen.t
+t/02_fetchsize.t
+t/03_longfetch.t
+README
+MANIFEST
+COPYING
