@@ -4,7 +4,7 @@ use Carp;
 use Fcntl ':seek', 'O_CREAT', 'O_RDWR';
 require 5.005;
 
-$VERSION = 0.02;
+$VERSION = 0.03;
 
 # Idea: The object will always contain an array of byte offsets
 # this will be filled in as is necessary and convenient.
@@ -45,12 +45,13 @@ sub TIEARRAY {
   $opts{offsets} = [0];
   $opts{filename} = $file;
   $opts{recsep} = $/ unless defined $opts{recsep};
-  $opts{recseplen} = -length($opts{recsep}); # Trick
+  $opts{recseplen} = length($opts{recsep});
 
   my $mode = defined($opts{mode}) ? $opts{mode} : O_CREAT|O_RDWR;
 
   my $fh = \do { local *FH };   # only works in 5.005 and later
   sysopen $fh, $file, $mode, 0666 or return;
+  binmode $fh;
   { my $ofh = select $fh; $| = 1; select $ofh } # autoflush on write
   $opts{fh} = $fh;
 
@@ -81,10 +82,7 @@ sub FETCH {
 sub STORE {
   my ($self, $n, $rec) = @_;
 
-  # If the record does not already end with the appropriate terminator
-  # string, append one.  Note that 'recseplen' is *negative* here.
-  $rec .= $self->{recsep}
-    unless substr($rec, $self->{recseplen}) eq $self->{recsep};
+  $self->_fixrecs($rec);
 
   # TODO: what should we do about the cache?  Install the new record
   # in the cache only if the old version of the same record was
@@ -103,38 +101,9 @@ sub STORE {
     $self->_extend_file_to($n);
     $oldrec = $self->{recsep};
   }
+  my $len_diff = length($rec) - length($oldrec);
 
-  # The file is now at least n records long; we can overwrite 
-  # record n with the new record
-  my $reclen = length($rec);
-  my $len_diff = $reclen - length($oldrec);
-
-  if ($len_diff == 0) {          # Woo-hoo!
-    my $fh = $self->{fh};
-    $self->_seek($n);
-    $self->_write_record($rec);
-    return;                     # well, that was easy.
-  } 
-
-  # the two records are of different lengths
-  # our strategy here: rewrite the tail of the file,
-  # reading ahead one buffer at a time
-  # $bufsize is required to be at least as large as the record we're inserting
-  my $bufsize = _bufsize($reclen);
-  my ($writepos, $readpos) = @{$self->{offsets}}[$n,$n+1];
-
-  while (length $rec > 0) {
-    $self->_seekb($readpos);
-    my $br = read $self->{fh}, my($nextrec), $bufsize;
-    $self->_seekb($writepos);
-    $self->_write_record($rec);
-    $readpos += $br;
-    $writepos += length $rec;
-    $rec = $nextrec;
-  }
-
-  # There might be leftover data at the end of the file
-  $self->_chop_file if $len_diff < 0;
+  $self->_twrite($rec, $self->{offsets}[$n], length($oldrec));
 
   # now update the offsets
   # array slice goes from element $n+1 (the first one to move)
@@ -142,8 +111,6 @@ sub STORE {
   for (@{$self->{offsets}}[$n+1 .. $#{$self->{offsets}}]) {
     $_ += $len_diff;
   }
-
-  1;
 }
 
 sub FETCHSIZE {
@@ -158,7 +125,7 @@ sub FETCHSIZE {
 sub STORESIZE {
   my ($self, $len) = @_;
   my $olen = $self->FETCHSIZE;
-  return if $len == $olen;
+  return if $len == $olen;      # Woo-hoo!
 
   # file gets longer
   if ($len > $olen) {
@@ -174,10 +141,137 @@ sub STORESIZE {
   delete @{$self->{cache}}{@cached} if @cached;
 }
 
+sub SPLICE {
+  my ($self, $pos, $nrecs, @data) = @_;
+  my @result;
+
+  $pos += $self->FETCHSIZE if $pos < 0;
+
+  $self->_fixrecs(@data);
+  my $data = join '', @data;
+  my $datalen = length $data;
+  my $oldlen = 0;
+
+  # compute length of data being removed
+  for ($pos .. $pos+$nrecs-1) {
+    my $rec = $self->FETCH($_);
+    last unless defined $rec;
+    push @result, $rec;
+    $oldlen += length($rec);
+  }
+
+  $self->_fill_offsets_to($pos);
+  $self->_twrite($data, $self->{offsets}[$pos], $oldlen);
+
+  # update the offsets table part 1
+  # compute the offsets of the new records:
+  my @new_offsets;
+  if (@data) {
+    push @new_offsets, $self->{offsets}[$pos];
+    for (0 .. $#data-1) {
+      push @new_offsets, $new_offsets[-1] + length($data[$_]);
+    }
+  }
+  splice(@{$self->{offsets}}, $pos, $nrecs, @new_offsets);
+
+  # update the offsets table part 2
+  # adjust the offsets of the following old records
+  for ($pos+@data .. $#{$self->{offsets}}) {
+    $self->{offsets}[$_] += $datalen - $oldlen;
+  }
+  # If we scrubbed out all known offsets, regenerate the trivial table
+  # that knows that the file does indeed start at 0.
+  $self->{offsets}[0] = 0 unless @{$self->{offsets}};
+
+  # update the read cache part 1
+  # modified records
+  # I think this part is wrong---it doesn't
+  # fix the entire read cache
+  for ($pos .. $pos+$nrecs-1) {
+    my $cached = $self->{cache}{$_};
+    next unless defined $cached;
+    my $new = $data[$_-$pos];
+    if (defined $new) {
+      $self->{cached} += length($new) - length($cached);
+      $self->{cache}{$_} = $new;
+    } else {
+      delete $self->{cache}{$_};
+      $self->{cached} -= length($cached);
+    }
+  }
+
+  #todo: fix the LRU cache
+}
+
+# write data into the file
+# $data is the data to be written. 
+# it should be written at position $pos, and should overwrite
+# exactly $len of the following bytes.  
+# Note that if length($data) > $len, the subsequent bytes will have to 
+# be moved up, and if length($data) < $len, they will have to
+# be moved down
+sub _twrite {
+  my ($self, $data, $pos, $len) = @_;
+
+  unless (defined $pos) {
+    die "\$pos was undefined in _twrite";
+  }
+
+  my $len_diff = length($data) - $len;
+
+  if ($len_diff == 0) {          # Woo-hoo!
+    my $fh = $self->{fh};
+    $self->_seekb($pos);
+    $self->_write_record($data);
+    return;                     # well, that was easy.
+  }
+
+  # the two records are of different lengths
+  # our strategy here: rewrite the tail of the file,
+  # reading ahead one buffer at a time
+  # $bufsize is required to be at least as large as the data we're overwriting
+  my $bufsize = _bufsize($len_diff);
+  my ($writepos, $readpos) = ($pos, $pos+$len);
+
+  # Seems like there ought to be a way to avoid the repeated code
+  # and the special case here.  The read(1) is also a little weird.
+  # Think about this.
+  do {
+    $self->_seekb($readpos);
+    my $br = read $self->{fh}, my($next_block), $bufsize;
+    my $more_data = read $self->{fh}, my($dummy), 1;
+    $self->_seekb($writepos);
+    $self->_write_record($data);
+    $readpos += $br;
+    $writepos += length $data;
+    $data = $next_block;
+    unless ($more_data) {
+      $self->_seekb($writepos);
+      $self->_write_record($next_block);
+    }
+  } while $more_data;
+
+  # There might be leftover data at the end of the file
+  $self->_chop_file if $len_diff < 0;
+}
+
+# If a record does not already end with the appropriate terminator
+# string, append one.
+sub _fixrecs {
+  my $self = shift;
+  for (@_) {
+    $_ .= $self->{recsep}
+      unless substr($_, - $self->{recseplen}) eq $self->{recsep};
+  }
+}
+
 # seek to the beginning of record #$n
 # Assumes that the offsets table is already correctly populated
-# Negative $n are taken to be record counts from the end
-# For example, $n=-1 means just past the last record.
+#
+# Note that $n=-1 has a special meaning here: It means the start of
+# the last known record; this may or may not be the very last record
+# in the file, depending on whether the offsets table is fully populated.
+#
 sub _seek {
   my ($self, $n) = @_;
   my $o = $self->{offsets}[$n];
@@ -203,7 +297,7 @@ sub _fill_offsets_to {
 
   until ($#OFF >= $n) {
     my $o = $OFF[-1];
-    $self->_seek(-1);           # tricky
+    $self->_seek(-1);           # tricky -- see comment at _seek
     $rec = $self->_read_record;
     if (defined $rec) {
       push @OFF, $o+length($rec);
@@ -211,7 +305,7 @@ sub _fill_offsets_to {
       return;                   # It turns out there is no such record
     }
   }
- 
+
   # we have now read all the records up to record n-1,
   # so we can return the offset of record n
   return $OFF[$n];
@@ -265,7 +359,7 @@ sub _cache_flush {
   while ($self->{cached} > $self->{cachesize}) {
     my $lru = pop @{$self->{lru}};
     $self->{cached} -= length $lru;
-    delete $self{cache}{$lru};
+    delete $self->{cache}{$lru};
   }
   # Now either there's only 
 }
@@ -286,7 +380,7 @@ sub _extend_file_to {
   # Todo : just use $self->{recsep} x $extras here?
   while ($extras-- > 0) {
     $self->_write_record($self->{recsep});
-    $pos -= $self->{recseplen}; # because it's negative
+    $pos += $self->{recseplen};
     push @{$self->{offsets}}, $pos;
   }
 }
@@ -309,21 +403,55 @@ sub _bufsize {
   $b;
 }
 
+
+# Given a file, make sure the cache is consistent with the
+# file contents
+sub _check_integrity {
+  my ($self, $file, $warn) = @_;
+  my $good = 1; 
+  local *F;
+  open F, $file or die "Couldn't open file $file: $!";
+  local $/ = $self->{recsep};
+  unless ($self->{offsets}[0] == 0) {
+    $warn && print STDERR "# rec 0: offset <$self->{offsets}[0]> s/b 0!\n";
+    $good = 0;
+  }
+  while (<F>) {
+    my $n = $. - 1;
+    my $cached = $self->{cache}{$n};
+    my $offset = $self->{offsets}[$.];
+    my $ao = tell F;
+    if (defined $offset && $offset != $ao) {
+      $warn && print STDERR "# rec $n: offset <$offset> actual <$ao>\n";
+    }
+    if (defined $cached && $_ ne $cached) {
+      $good = 0;
+      chomp $cached;
+      chomp;
+      $warn && print STDERR "# rec $n: cached <$cached> actual <$_>\n";
+    }
+  }
+  $good;
+}
+
 =head1 NAME
 
 Tie::File - Access the lines of a disk file via a Perl array
 
 =head1 SYNOPSIS
 
-	# This file documents Tie::File version 0.02
+	# This file documents Tie::File version 0.03
 
-	tie @array, 'Tie::File', filename;
+	tie @array, 'Tie::File', filename or die ...;
 
 	$array[13] = 'blah';     # line 13 of the file is now 'blah'
 	print $array[42];        # display line 42 of the file
 
 	$n_recs = @array;        # how many records are in the file?
 	$#array = $n_recs - 2;   # chop records off the end
+
+	# As you would expect
+	@old_recs = splice @array, 3, 7, new recs...;
 
 	untie @array;            # all finished
 
@@ -350,11 +478,12 @@ probably C<"\n"> or C<"\r\n">.  You may change the definition of
 
 This says that records are delimited by the string C<es>.  If the file contained the following data:
 
-	These pesky flies!\n
+	Curse these pesky flies!\n
 
-then the C<@array> would appear to have four elements: 
+then the C<@array> would appear to have five elements: 
 
-	"Thes"
+	"Curse"
+	" thes"
 	"e pes"
 	"ky flies"
 	"!\n"
@@ -392,11 +521,20 @@ See L<Fcntl> for a listing of available flags.
 For example:
 
 
+
 	# open the file if it exists, but fail if it does not exist
+	use Fcntl 'O_RDWR';
 	tie @array, 'Tie::File', $file, mode => O_RDWR;
 
-Opening the data file in read-only, write-only, or append mode is not
-supported.
+	# create the file if it does not exist
+	use Fcntl 'O_RDWR', 'O_CREAT';
+	tie @array, 'Tie::File', $file, mode => O_RDWR | O_CREAT;
+
+	# open an existing file in read-only mode
+	use Fcntl 'O_RDONLY';
+	tie @array, 'Tie::File', $file, mode => O_RDONLY;
+
+Opening the data file in write-only or append mode is not supported.
 
 =head2 C<cachesize>
 
@@ -433,9 +571,8 @@ no other public methods in this package.
 =head2 Efficiency Note
 
 Every effort was made to make this module efficient.  Nevertheless,
-inserting a long record in the middle of a large file will always be
-slow, because everytihing after the new record must be copied forward
-towards the end of the file.
+changing the size of a record in the middle of a large file will
+always be slow, because everything after the new record must be move.
 
 In particular, note that:
 
@@ -479,7 +616,7 @@ C<mjd-perl-tiefile-subscribe@plover.com>.
 
 =head1 LICENSE
 
-C<Tie::File> version 0.02 is copyright (C) 2002 Mark Jason Dominus.
+C<Tie::File> version 0.03 is copyright (C) 2002 Mark Jason Dominus.
 
 This program is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -504,25 +641,28 @@ For licensing inquiries, contact the author at:
 
 =head1 WARRANTY
 
-C<Tie::File> version 0.02 comes with ABSOLUTELY NO WARRANTY.
+C<Tie::File> version 0.03 comes with ABSOLUTELY NO WARRANTY.
 For details, see the license.
 
 =head1 TODO
 
-C<push>, C<pop>, C<shift>, C<unshift>, C<splice>.
+C<push>, C<pop>, C<shift>, C<unshift>.
 
 More tests.  (Configuration options, cache flushery, alternative
-record separators.)
+record separators.  _twrite shoule be tested separately, because there
+are a lot of weird special cases lurking in there.)
 
 More tests.  (Stuff I didn't think of yet.)
 
 File locking.
 
-Deferred writing.
+Deferred writing. (!!!)
 
 Paragraph mode?
 
 More tests.
+
+Fixed-length mode.
 
 =cut
 
