@@ -1,4 +1,8 @@
 
+What's new in version 0.18:
+
+  No significant changes.  (Upload to force CPAN module database to update.)
+
 What's new in version 0.17:
 
   Minor cleanups and test improvements for release with Perl 5.7.3.
@@ -36,39 +40,14 @@ What's new in version 0.14:
   Handling of negative position argument to 'SPLICE' is now correct.
   Return of SPLICE in scalar context is now correct.
 
-What's new in version 0.13:
-
-  Added binmode() calls in tests to support Win32 etc.
-
-What's new in version 0.12:
-
-  Trivial change to get SEEK_SET from POSIX instead of Fcntl.
-
-What's new in version 0.11:
-
-  Test suite now more portable; added tests for 'recsep' option.
-
-What's new in version 0.10:
-
-  SPLICE method supported.  Many minor changes.
-
-What's new in version 0.02:
-
-  STORESIZE method implements $#array = $n.
-
-What's new in version 0.01:
-
-  This is the initial release.
-
-
-
 ----------------------------------------------------------------
+
 
 NAME
     Tie::File - Access the lines of a disk file via a Perl array
 
 SYNOPSIS
-            # This file documents Tie::File version 0.17
+            # This file documents Tie::File version 0.18
 
             tie @array, 'Tie::File', filename or die ...;
 
@@ -87,6 +66,8 @@ SYNOPSIS
             @old_recs = splice @array, 3, 7, new recs...;
 
             untie @array;            # all finished
+
+            # See below for more options and methods
 
 
 DESCRIPTION
@@ -347,7 +328,7 @@ AUTHOR
     subscribe@plover.com'.
 
 LICENSE
-    `Tie::File' version 0.17 is copyright (C) 2002 Mark Jason
+    `Tie::File' version 0.18 is copyright (C) 2002 Mark Jason
     Dominus.
 
     This library is free software; you may redistribute it and/or
@@ -376,7 +357,7 @@ LICENSE
 
 
 WARRANTY
-    `Tie::File' version 0.17 comes with ABSOLUTELY NO WARRANTY. For
+    `Tie::File' version 0.18 comes with ABSOLUTELY NO WARRANTY. For
     details, see the license.
 
 THANKS
