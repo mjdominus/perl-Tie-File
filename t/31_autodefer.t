@@ -13,7 +13,7 @@ $: = Tie::File::_default_recsep();
 my $data = "rec0$:rec1$:rec2$:";
 my ($o, $n, @a);
 
-print "1..56\n";
+print "1..65\n";
 
 my $N = 1;
 use Tie::File;
@@ -100,164 +100,37 @@ $o->flush;
 check_autodeferring('OFF');
 check_contents("s0$:s1$:s2$:s3$:s4$:");
 
-exit 0;
-
-################################################################
-#
-# Now we're going to test the results of a small memory limit
-#
-# 
-undef $o;  untie @a;
-$data = join "$:", map("record$_", 0..7), "";  # records are 8 or 9 bytes long
-open F, "> $file" or die $!;
-binmode F;
-print F $data;
-close F;
+undef $o; untie @a;
 
 # Limit cache+buffer size to 47 bytes 
 my $MAX = 47;
 #  -- that's enough space for 5 records, but not 6, on both \n and \r\n systems
 my $BUF = 20;
 #  -- that's enough space for 2 records, but not 3, on both \n and \r\n systems
-$o = tie @a, 'Tie::File', $file, memory => $MAX, dw_size => $BUF;
-print $o ? "ok $N\n" : "not ok $N\n";
-$N++;
+# Re-tie the object for more tests
+$o = tie @a, 'Tie::File', $file, autodefer => 0;
+die $! unless $o;
+# I am an undocumented feature
+$o->{autodefer_filelen_threshhold} = 0;
+# Normally autodeferring only works on large files.  This disables that.
 
-# (31-32) Fill up the read cache
-my @z;
-@z = @a;                        
-# the cache now contains records 3,4,5,6,7.
-check_caches({map(($_ => "record$_$:"), 3..7)}, 
-             {});
+# (57-59) Did the autodefer => 0 option work?
+# (If it doesn't, a whole bunch of the other test files will fail.)
+@a = (0..3);
+check_autodeferring('OFF');
+check_contents(join("$:", qw(0 1 2 3), ""));
 
-# (33-44) See if overloading the defer starts by flushing the read cache
-# and then flushes out the defer
-$o->defer;
-$a[0] = "recordA";              # That should flush record 3 from the cache
-check_caches({map(($_ => "record$_$:"), 4..7)}, 
-             {0 => "recordA$:"});
-check_contents($data);
+# (60-62) Does the ->autodefer method work?
+$o->autodefer(1);
+@a = (10..13);
+check_autodeferring('ON');
+check_contents("$:$:$:$:");  # This might be unfortunate.
 
-$a[1] = "recordB";              # That should flush record 4 from the cache
-check_caches({map(($_ => "record$_$:"), 5..7)}, 
-             {0 => "recordA$:",
-              1 => "recordB$:"});
-check_contents($data);
+# (63-65) Does the ->autodefer method work?
+$o->autodefer(0);
+check_autodeferring('OFF');
+check_contents(join("$:", qw(10 11 12 13), ""));
 
-$a[2] = "recordC";              # That should flush the whole darn defer
-# Flushing the defer requires looking up the true lengths of records
-# 0..2, which flushes out the read cache, leaving only 1..2 there.
-# Then the splicer updates the cached versions of 1..2 to contain the
-# new data
-check_caches({1 => "recordB$:", 2 => "recordC$:"},
-             {});               # URRRP
-check_contents(join("$:", qw(recordA recordB recordC 
-                             record3 record4 record5 record6 record7)) . "$:");
-
-$a[3] = "recordD";         # even though we flushed, deferring is STILL ENABLED
-check_caches({1 => "recordB$:", 2 => "recordC$:"},
-             {3 => "recordD$:"}); 
-check_contents(join("$:", qw(recordA recordB recordC 
-                             record3 record4 record5 record6 record7)) . "$:");
-
-# Check readcache-deferbuffer interactions
-
-# (45-47) This should remove outdated data from the read cache
-$a[2] = "recordE";
-check_caches({1 => "recordB$:",                 },
-             {3 => "recordD$:", 2 => "recordE$:"}); 
-check_contents(join("$:", qw(recordA recordB recordC 
-                             record3 record4 record5 record6 record7)) . "$:");
-
-# (48-51) This should read back out of the defer buffer 
-# without adding anything to the read cache
-my $z;
-$z = $a[2];
-print $z eq "recordE" ? "ok $N\n" : "not ok $N\n";  $N++;
-check_caches({1 => "recordB$:",                 },
-             {3 => "recordD$:", 2 => "recordE$:"}); 
-check_contents(join("$:", qw(recordA recordB recordC 
-                             record3 record4 record5 record6 record7)) . "$:");
-
-# (52-55) This should repopulate the read cache with a new record
-$z = $a[0];
-print $z eq "recordA" ? "ok $N\n" : "not ok $N\n";  $N++;
-check_caches({1 => "recordB$:", 0 => "recordA$:"},
-             {3 => "recordD$:", 2 => "recordE$:"}); 
-check_contents(join("$:", qw(recordA recordB recordC 
-                             record3 record4 record5 record6 record7)) . "$:");
-
-# (56-59) This should flush the LRU record from the read cache
-$z = $a[4];  $z = $a[5];
-print $z eq "record5" ? "ok $N\n" : "not ok $N\n";  $N++;
-check_caches({5 => "record5$:", 0 => "recordA$:", 4 => "record4$:"},
-             {3 => "recordD$:", 2 => "recordE$:"}); 
-check_contents(join("$:", qw(recordA recordB recordC 
-                             record3 record4 record5 record6 record7)) . "$:");
-
-# (60-63) This should FLUSH the deferred buffer
-# In doing so, it will read in records 2 and 3, flushing 0 and 4
-# from the read cache, leaving 2, 3, and 5.
-$z = splice @a, 3, 1, "recordZ";
-print $z eq "recordD" ? "ok $N\n" : "not ok $N\n";  $N++;
-check_caches({5 => "record5$:", 3 => "recordZ$:", 2 => "recordE$:"},
-             {}); 
-check_contents(join("$:", qw(recordA recordB recordE 
-                             recordZ record4 record5 record6 record7)) . "$:");
-
-# (64-66) We should STILL be in deferred writing mode
-$a[5] = "recordX";
-check_caches({3 => "recordZ$:", 2 => "recordE$:"},
-             {5 => "recordX$:"}); 
-check_contents(join("$:", qw(recordA recordB recordE 
-                             recordZ record4 record5 record6 record7)) . "$:");
-
-# Fill up the defer buffer again
-$a[4] = "recordP";
-# (67-69) This should OVERWRITE the existing deferred record 
-# and NOT flush the buffer
-$a[5] = "recordQ";   
-check_caches({3 => "recordZ$:", 2 => "recordE$:"},
-             {5 => "recordQ$:", 4 => "recordP$:"}); 
-check_contents(join("$:", qw(recordA recordB recordE 
-                             recordZ record4 record5 record6 record7)) . "$:");
-
-
-# (70-72) Discard should just dump the whole deferbuffer
-$o->discard;
-check_caches({3 => "recordZ$:", 2 => "recordE$:"},
-             {}); 
-check_contents(join("$:", qw(recordA recordB recordE 
-                             recordZ record4 record5 record6 record7)) . "$:");
-# (73-75) NOW we are out of deferred writing mode
-$a[0] = "recordF";
-check_caches({3 => "recordZ$:", 2 => "recordE$:", 0 => "recordF$:"},
-             {}); 
-check_contents(join("$:", qw(recordF recordB recordE 
-                             recordZ record4 record5 record6 record7)) . "$:");
-
-# (76-79) Last call--untying the array should flush the deferbuffer
-$o->defer;
-$a[0] = "flushed";
-check_caches({3 => "recordZ$:", 2 => "recordE$:"},
-             {0 => "flushed$:" }); 
-check_contents(join("$:", qw(recordF recordB recordE 
-                             recordZ record4 record5 record6 record7)) . "$:");
-undef $o;
-untie @a;
-# (79) We can't use check_contents any more, because the object is dead
-open F, "< $file" or die;
-{ local $/ ; $z = <F> }
-close F;
-my $x = join("$:", qw(flushed recordB recordE 
-                      recordZ record4 record5 record6 record7)) . "$:";
-if ($z eq $x) {
-  print "ok $N\n";
-} else {
-  my $msg = ctrlfix("expected <$x>, got <$z>");
-  print "not ok $N \# $msg\n";
-}
-$N++;
 
 sub check_autodeferring {
   my ($x) = shift;
