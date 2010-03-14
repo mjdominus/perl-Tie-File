@@ -1,4 +1,8 @@
 
+What's new in version 0.17:
+
+  Minor cleanups and test improvements for release with Perl 5.7.3.
+
 What's new in version 0.16:
 
   You may now tie an array to an already-opened seekable filehandle,
@@ -64,7 +68,7 @@ NAME
     Tie::File - Access the lines of a disk file via a Perl array
 
 SYNOPSIS
-            # This file documents Tie::File version 0.16
+            # This file documents Tie::File version 0.17
 
             tie @array, 'Tie::File', filename or die ...;
 
@@ -100,8 +104,8 @@ DESCRIPTION
 
     What is a 'record'? By default, the meaning is the same as for
     the `<...>' operator: It's a string terminated by `$/', which is
-    probably `"\n"' or `"\r\n"'. You may change the definition of
-    "record" by supplying the `recsep' option in the `tie' call:
+    probably `"\n"'. You may change the definition of "record" by
+    supplying the `recsep' option in the `tie' call:
 
             tie @array, 'Tie::File', $file, recsep => 'es';
 
@@ -119,6 +123,9 @@ DESCRIPTION
             "ky flies"
             "!\n"
 
+
+    Windows users will probably want to use `recsep => "\r\n"' to
+    get files terminated with the usual CRLF sequence.
 
     An undefined value is not permitted as a record separator.
     Perl's special "paragraph mode" semantics (à la `$/ = ""') are
@@ -262,7 +269,8 @@ Public Methods
     were opened read-only will work as long as you don't try to
     write to them. Handles must be attached to seekable sources of
     data---that means no pipes or sockets. If you try to supply a
-    non-seekable handle, the `tie' call will abort your program.
+    non-seekable handle, the `tie' call will try to abort your
+    program. This feature is not yet supported under VMS.
 
 CAVEATS
     (That's Latin for 'warnings'.)
@@ -288,9 +296,9 @@ CAVEATS
     done using block writes, however, so it's not as slow as it
     might be.
 
-    A future version of this module will provide a mechanism for
-    getting better performance in such cases, by deferring the
-    writing until it can be done all at once.
+    A soon-to-be-released version of this module will provide a
+    mechanism for getting better performance in such cases, by
+    deferring the writing until it can be done all at once.
 
   Efficiency Note 2
 
@@ -339,7 +347,7 @@ AUTHOR
     subscribe@plover.com'.
 
 LICENSE
-    `Tie::File' version 0.16 is copyright (C) 2002 Mark Jason
+    `Tie::File' version 0.17 is copyright (C) 2002 Mark Jason
     Dominus.
 
     This library is free software; you may redistribute it and/or
@@ -368,7 +376,7 @@ LICENSE
 
 
 WARRANTY
-    `Tie::File' version 0.16 comes with ABSOLUTELY NO WARRANTY. For
+    `Tie::File' version 0.17 comes with ABSOLUTELY NO WARRANTY. For
     details, see the license.
 
 THANKS
@@ -382,8 +390,8 @@ THANKS
     Kobes (for Win32 portability help), the rest of the CPAN testers
     (for testing).
 
-    More thanks to: Gerrit Haase / Tassilo von Parseval / H. Dieter
-    Pearcey / Peter Somu / Tels
+    More thanks to: Gerrit Haase / Nick Ing-Simmons / Tassilo von
+    Parseval / H. Dieter Pearcey / Peter Somu / Tels
 
 TODO
     Test DELETE machinery more carefully.
