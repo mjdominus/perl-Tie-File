@@ -1,10 +1,6 @@
 
 (Complete documentation follows this change summary.)
 
-What's new in version 0.51:
-
-  Minor fixes in the test suite.
-
 What's new in version 0.50:
 
   DEFERRED WRITING:  You may now use the ->defer method to request
@@ -94,7 +90,7 @@ NAME
     Tie::File - Access the lines of a disk file via a Perl array
 
 SYNOPSIS
-            # This file documents Tie::File version 0.51
+            # This file documents Tie::File version 0.50
 
             tie @array, 'Tie::File', filename or die ...;
 
@@ -623,7 +619,7 @@ AUTHOR
 
 
 LICENSE
-    `Tie::File' version 0.51 is copyright (C) 2002 Mark Jason
+    `Tie::File' version 0.50 is copyright (C) 2002 Mark Jason
     Dominus.
 
     This library is free software; you may redistribute it and/or
@@ -652,7 +648,7 @@ LICENSE
 
 
 WARRANTY
-    `Tie::File' version 0.51 comes with ABSOLUTELY NO WARRANTY. For
+    `Tie::File' version 0.50 comes with ABSOLUTELY NO WARRANTY. For
     details, see the license.
 
 THANKS
