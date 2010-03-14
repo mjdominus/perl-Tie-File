@@ -10,6 +10,7 @@
 # Then, it checks the actual contents of the file against the expected
 # contents.
 
+use lib '/home/mjd/src/perl/Tie-File2/lib';
 my $file = "tf$$.txt";
 my $data = "rec0$/rec1$/rec2$/";
 

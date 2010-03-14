@@ -1,4 +1,8 @@
 
+What's new in version 0.12:
+
+  Trivial change to get SEEK_SET from POSIX instead of Fcntl.
+
 What's new in version 0.11:
 
   Test suite now more portable; added tests for 'recsep' option.
@@ -22,7 +26,7 @@ NAME
     Tie::File - Access the lines of a disk file via a Perl array
 
 SYNOPSIS
-            # This file documents Tie::File version 0.11
+            # This file documents Tie::File version 0.12
 
             tie @array, 'Tie::File', filename or die ...;
 
@@ -229,7 +233,7 @@ AUTHOR
     subscribe@plover.com'.
 
 LICENSE
-    `Tie::File' version 0.11 is copyright (C) 2002 Mark Jason
+    `Tie::File' version 0.12 is copyright (C) 2002 Mark Jason
     Dominus.
 
     This program is free software; you can redistribute it and/or
@@ -255,7 +259,7 @@ LICENSE
 
 
 WARRANTY
-    `Tie::File' version 0.11 comes with ABSOLUTELY NO WARRANTY. For
+    `Tie::File' version 0.12 comes with ABSOLUTELY NO WARRANTY. For
     details, see the license.
 
 TODO

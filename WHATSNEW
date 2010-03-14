@@ -1,3 +1,8 @@
+
+What's new in version 0.12:
+
+  Trivial change to get SEEK_SET from POSIX instead of Fcntl.
+
 What's new in version 0.11:
 
   Test suite now more portable; added tests for 'recsep' option.
