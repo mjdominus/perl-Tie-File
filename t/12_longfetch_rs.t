@@ -34,6 +34,8 @@ for (2, 1, 0) {
 }
 
 END {
+  undef $o;
+  untie @a;
   1 while unlink $file;
 }
 

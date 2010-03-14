@@ -1,4 +1,16 @@
 
+What's new in version 0.15:
+
+  Fixed bug in POP of empty file.
+
+  SPLICE now defaults its arguments correctly.
+
+  test suite and ->_integrity now borrow the object's internal
+  filehandle instead of opening new ones; this may improve portability
+  of the test suite.
+
+  License is now "Same terms as Perl" instead of GPL.
+
 What's new in version 0.14:
 
   Added ->flock method for locking the handle.

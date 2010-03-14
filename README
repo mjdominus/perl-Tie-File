@@ -1,4 +1,16 @@
 
+What's new in version 0.15:
+
+  Fixed bug in POP of empty file.
+
+  SPLICE now defaults its arguments correctly.
+
+  test suite and ->_integrity now borrow the object's internal
+  filehandle instead of opening new ones; this may improve portability
+  of the test suite.
+
+  License is now "Same terms as Perl" instead of GPL.
+
 What's new in version 0.14:
 
   Added ->flock method for locking the handle.
@@ -40,7 +52,7 @@ NAME
     Tie::File - Access the lines of a disk file via a Perl array
 
 SYNOPSIS
-            # This file documents Tie::File version 0.14
+            # This file documents Tie::File version 0.15
 
             tie @array, 'Tie::File', filename or die ...;
 
@@ -114,8 +126,8 @@ DESCRIPTION
 
     The result is that the contents of line 17 of the file will be
     replaced with "Cherry pie"; a newline character will separate
-    line 17 from line 18. This means that inparticular, this will do
-    nothing:
+    line 17 from line 18. This means that in particular, this will
+    do nothing:
 
             chomp $array[17];
 
@@ -244,7 +256,7 @@ CAVEATS
     done using block writes, however, so it's not as slow as it
     might be.
 
-    A future version of this module will provide some mechanism for
+    A future version of this module will provide a mechanism for
     getting better performance in such cases, by deferring the
     writing until it can be done all at once.
 
@@ -295,23 +307,26 @@ AUTHOR
     subscribe@plover.com'.
 
 LICENSE
-    `Tie::File' version 0.14 is copyright (C) 2002 Mark Jason
+    `Tie::File' version 0.15 is copyright (C) 2002 Mark Jason
     Dominus.
 
-    This program is free software; you can redistribute it and/or
-    modify it under the terms of the GNU General Public License as
-    published by the Free Software Foundation; either version 2 of
-    the License, or (at your option) any later version.
+    This library is free software; you may redistribute it and/or
+    modify it under the same terms as Perl itself.
 
-    This program is distributed in the hope that it will be useful,
+    These terms include your choice of (1) the Perl Artistic
+    Licence, or (2) version 2 of the GNU General Public License as
+    published by the Free Software Foundation, or (3) any later
+    version of the GNU General Public License.
+
+    This library is distributed in the hope that it will be useful,
     but WITHOUT ANY WARRANTY; without even the implied warranty of
     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
     General Public License for more details.
 
     You should have received a copy of the GNU General Public
-    License along with this program; it should be in the file
-    `COPYING'. If not, write to the Free Software Foundation, Inc.,
-    59 Temple Place, Suite 330, Boston, MA 02111 USA
+    License along with this library program; it should be in the
+    file `COPYING'. If not, write to the Free Software Foundation,
+    Inc., 59 Temple Place, Suite 330, Boston, MA 02111 USA
 
     For licensing inquiries, contact the author at:
 
@@ -321,10 +336,12 @@ LICENSE
 
 
 WARRANTY
-    `Tie::File' version 0.14 comes with ABSOLUTELY NO WARRANTY. For
+    `Tie::File' version 0.15 comes with ABSOLUTELY NO WARRANTY. For
     details, see the license.
 
 TODO
+    Allow tie to seekable filehandle rather than named file.
+
     Tests for default arguments to SPLICE. Tests for CLEAR/EXTEND.
     Tests for DELETE/EXISTS.
 
