@@ -1,4 +1,16 @@
 
+What's new in version 0.16:
+
+  You may now tie an array to an already-opened seekable filehandle,
+  rather than to a filename.
+
+  More tests.
+
+  Bug fix in STORE: It wasn't tracking the cache size correctly
+
+  Bug fix in DELETE: it wasn't adjusting the offsets, cache, and LRU
+  tables correctly when deleting the last record in the file.
+
 What's new in version 0.15:
 
   Fixed bug in POP of empty file.

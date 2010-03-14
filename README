@@ -1,4 +1,16 @@
 
+What's new in version 0.16:
+
+  You may now tie an array to an already-opened seekable filehandle,
+  rather than to a filename.
+
+  More tests.
+
+  Bug fix in STORE: It wasn't tracking the cache size correctly
+
+  Bug fix in DELETE: it wasn't adjusting the offsets, cache, and LRU
+  tables correctly when deleting the last record in the file.
+
 What's new in version 0.15:
 
   Fixed bug in POP of empty file.
@@ -52,7 +64,7 @@ NAME
     Tie::File - Access the lines of a disk file via a Perl array
 
 SYNOPSIS
-            # This file documents Tie::File version 0.15
+            # This file documents Tie::File version 0.16
 
             tie @array, 'Tie::File', filename or die ...;
 
@@ -211,7 +223,7 @@ Public Methods
     example `LOCK_SH' or `LOCK_EX | LOCK_NB'. (These constants are
     provided by the `use Fcntl ':flock'' declaration.)
 
-    `MODE' is optional; `< $o-'flock >> simply locks the file with
+    `MODE' is optional; `$o->flock' simply locks the file with
     `LOCK_EX'.
 
     The best way to unlock a file is to discard the object and untie
@@ -232,6 +244,26 @@ Public Methods
     sideways; it merely guarantees to you that the idiot does not
     also have a green light at the same time.
 
+  Tying to an already-opened filehandle
+
+    If `$fh' is a filehandle, such as is returned by `IO::File' or
+    one of the other `IO' modules, you may use:
+
+            tie @array, 'Tie::File', $fh, ...;
+
+
+    Similarly if you opened that handle `FH' with regular `open' or
+    `sysopen', you may use:
+
+            tie @array, 'Tie::File', \*FH, ...;
+
+
+    Handles that were opened write-only won't work. Handles that
+    were opened read-only will work as long as you don't try to
+    write to them. Handles must be attached to seekable sources of
+    data---that means no pipes or sockets. If you try to supply a
+    non-seekable handle, the `tie' call will abort your program.
+
 CAVEATS
     (That's Latin for 'warnings'.)
 
@@ -240,7 +272,7 @@ CAVEATS
     Every effort was made to make this module efficient.
     Nevertheless, changing the size of a record in the middle of a
     large file will always be slow, because everything after the new
-    record must be move.
+    record must be moved.
 
     In particular, note that:
 
@@ -274,7 +306,7 @@ CAVEATS
     file I/O, almost all normal use of it will be heavily I/O bound,
     and that the time to maintain complicated data structures inside
     the module will be dominated by the time to actually perform the
-    I/O. This suggests, for example, that and LRU read-cache is a
+    I/O. This suggests, for example, that an LRU read-cache is a
     good tradeoff, even if it requires substantial adjustment
     following a `splice' operation.
 
@@ -307,7 +339,7 @@ AUTHOR
     subscribe@plover.com'.
 
 LICENSE
-    `Tie::File' version 0.15 is copyright (C) 2002 Mark Jason
+    `Tie::File' version 0.16 is copyright (C) 2002 Mark Jason
     Dominus.
 
     This library is free software; you may redistribute it and/or
@@ -336,18 +368,29 @@ LICENSE
 
 
 WARRANTY
-    `Tie::File' version 0.15 comes with ABSOLUTELY NO WARRANTY. For
+    `Tie::File' version 0.16 comes with ABSOLUTELY NO WARRANTY. For
     details, see the license.
 
+THANKS
+    Gigantic thanks to Jarkko Hietaniemi, for agreeing to put this
+    in the core when I hadn't written it yet, and for generally
+    being helpful, supportive, and competent. (Usually the rule is
+    "choose any one.") Also big thanks to Abhijit Menon-Sen for all
+    of the same things.
+
+    Special thanks to Craig Berry (for VMS portability help), Randy
+    Kobes (for Win32 portability help), the rest of the CPAN testers
+    (for testing).
+
+    More thanks to: Gerrit Haase / Tassilo von Parseval / H. Dieter
+    Pearcey / Peter Somu / Tels
+
 TODO
-    Allow tie to seekable filehandle rather than named file.
+    Test DELETE machinery more carefully.
 
-    Tests for default arguments to SPLICE. Tests for CLEAR/EXTEND.
-    Tests for DELETE/EXISTS.
-
-    More tests. (Configuration options, cache flushery, locking.
-    _twrite should be tested separately, because there are a lot of
-    weird special cases lurking in there.)
+    More tests. (Configuration options, cache flushery. _twrite
+    should be tested separately, because there are a lot of weird
+    special cases lurking in there.)
 
     More tests. (Stuff I didn't think of yet.)
 
@@ -358,4 +401,6 @@ TODO
     More tests.
 
     Fixed-length mode.
+
+    Maybe an autolocking mode?
 
