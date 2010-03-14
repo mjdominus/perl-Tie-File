@@ -117,11 +117,10 @@ use POSIX 'SEEK_SET';
 sub check_contents {
   my @c = @_;
   my $x = join $:, @c, '';
-  local *FH = $o->{fh};
-  seek FH, 0, SEEK_SET;
-#  my $open = open FH, "< $file";
+  my $fh = $o->{fh};
+  seek $fh, 0, SEEK_SET;
   my $a;
-  { local $/; $a = <FH> }
+  { local $/; $a = <$fh> }
   $a = "" unless defined $a;
   if ($a eq $x) {
     print "ok $N\n";

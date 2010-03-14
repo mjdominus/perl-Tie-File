@@ -2,7 +2,7 @@
 package Tie::File;
 require 5.005;
 use Carp ':DEFAULT', 'confess';
-use POSIX 'SEEK_SET';
+use POSIX 'SEEK_SET', 'SEEK_END';
 use Fcntl 'O_CREAT', 'O_RDWR', 'LOCK_EX', 'LOCK_SH', 'O_WRONLY', 'O_RDONLY';
 sub O_ACCMODE () { O_RDONLY | O_RDWR | O_WRONLY }
 
@@ -925,6 +925,7 @@ sub _read_record {
       local $\ = "";
       my $fh = $self->{fh};
       print $fh $self->{recsep};
+      seek $fh, 0, SEEK_END;    # Thanks Heiko Eissfeldt
     }
     $rec .= $self->{recsep};
   }
@@ -2176,7 +2177,7 @@ Setting the memory limit to 0 will inhibit caching; records will be
 fetched from disk every time you examine them.
 
 The C<memory> value is not an absolute or exact limit on the memory
-used.  C<Tie::File> objects contains some structures besides the read
+used.  C<Tie::File> objects contain some structures besides the read
 cache and the deferred write buffer, whose sizes are not charged
 against C<memory>. 
 
@@ -2582,6 +2583,8 @@ Additional thanks to:
 Edward Avis /
 Mattia Barbon /
 Tom Christiansen /
+Andy Dougherty /
+Heiko Eissfeldt /
 Gerrit Haase /
 Gurusamy Sarathy /
 Jarkko Hietaniemi (again) /
