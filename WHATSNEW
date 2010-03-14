@@ -1,4 +1,13 @@
 
+What's new in version 0.14:
+
+  Added ->flock method for locking the handle.
+
+  Added PUSH, POP, SHIFT, UNSHIFT, CLEAR, EXTEND,  DELETE and EXISTS methods.
+
+  Handling of negative position argument to 'SPLICE' is now correct.
+  Return of SPLICE in scalar context is now correct.
+
 What's new in version 0.13:
 
   Added binmode() calls in tests to support Win32 etc.
