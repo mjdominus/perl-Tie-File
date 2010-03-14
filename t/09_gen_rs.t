@@ -8,9 +8,10 @@ my $N = 1;
 use Tie::File;
 print "ok $N\n"; $N++;
 
-my $o = tie @a, 'Tie::File', $file;
+my $o = tie @a, 'Tie::File', $file, recsep => 'blah';
 print $o ? "ok $N\n" : "not ok $N\n";
 $N++;
+
 
 # 3-4 create
 $a[0] = 'rec0';
@@ -66,7 +67,7 @@ check_contents("sh0", "sh1", "short2", "rec3", "rec4");
 
 sub check_contents {
   my @c = @_;
-  my $x = join $/, @c, '';
+  my $x = join 'blah', @c, '';
   local *FH;
   my $open = open FH, "< $file";
   my $a;
@@ -77,7 +78,7 @@ sub check_contents {
   # now check FETCH:
   my $good = 1;
   for (0.. $#c) {
-    $good = 0 unless $a[$_] eq "$c[$_]\n";
+    $good = 0 unless $a[$_] eq "$c[$_]blah";
   }
   print (($open && $good) ? "ok $N\n" : "not ok $N # fetch @c\n");
   $N++;

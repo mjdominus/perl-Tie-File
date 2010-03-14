@@ -4,7 +4,7 @@ use Carp;
 use Fcntl ':seek', 'O_CREAT', 'O_RDWR';
 require 5.005;
 
-$VERSION = "0.10";
+$VERSION = "0.11";
 
 # Idea: The object will always contain an array of byte offsets
 # this will be filled in as is necessary and convenient.
@@ -497,7 +497,7 @@ Tie::File - Access the lines of a disk file via a Perl array
 
 =head1 SYNOPSIS
 
-	# This file documents Tie::File version 0.10
+	# This file documents Tie::File version 0.11
 
 	tie @array, 'Tie::File', filename or die ...;
 
@@ -560,8 +560,13 @@ is C<"\n">, then the following two lines do exactly the same thing:
 
 The result is that the contents of line 17 of the file will be
 replaced with "Cherry pie"; a newline character will separate line 17
-from line 18.  There is no way to create a file whose trailing record
-separator string is missing.
+from line 18.  This means that inparticular, this will do nothing:
+
+	chomp $array[17];
+
+Because the C<chomp>ed value will have the separator reattached when
+it is written back to the file.  There is no way to create a file
+whose trailing record separator string is missing.
 
 Inserting records that I<contain> the record separator string will
 produce a reasonable result, but if you can't foresee what this result
@@ -686,7 +691,7 @@ C<mjd-perl-tiefile-subscribe@plover.com>.
 
 =head1 LICENSE
 
-C<Tie::File> version 0.10 is copyright (C) 2002 Mark Jason Dominus.
+C<Tie::File> version 0.11 is copyright (C) 2002 Mark Jason Dominus.
 
 This program is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -711,16 +716,16 @@ For licensing inquiries, contact the author at:
 
 =head1 WARRANTY
 
-C<Tie::File> version 0.10 comes with ABSOLUTELY NO WARRANTY.
+C<Tie::File> version 0.11 comes with ABSOLUTELY NO WARRANTY.
 For details, see the license.
 
 =head1 TODO
 
 C<push>, C<pop>, C<shift>, C<unshift>.
 
-More tests.  (Configuration options, cache flushery, alternative
-record separators.  _twrite shoule be tested separately, because there
-are a lot of weird special cases lurking in there.)
+More tests.  (Configuration options, cache flushery.  _twrite shoule
+be tested separately, because there are a lot of weird special cases
+lurking in there.)
 
 More tests.  (Stuff I didn't think of yet.)
 

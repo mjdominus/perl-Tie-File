@@ -9,6 +9,11 @@ t/05_size.t
 t/06_fixrec.t
 t/07_rv_splice.t
 t/08_ro.t
+t/09_gen_rs.t
+t/10_splice_rs.t
+t/11_rv_splice_rs.t
+t/12_longfetch_rs.t
+t/13_size_rs.t
 README
 WHATSNEW
 COPYING

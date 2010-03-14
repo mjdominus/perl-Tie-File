@@ -5,7 +5,7 @@
 #
 
 my $file = "tf$$.txt";
-my $data = "rec0$/rec1$/rec2$/";
+my $data = "rec0blahrec1blahrec2blah";
 my ($o, $n);
 
 print "1..10\n";
@@ -17,7 +17,7 @@ print "ok $N\n"; $N++;
 # 2-3 FETCHSIZE 0-length file
 open F, "> $file" or die $!;
 close F;
-$o = tie @a, 'Tie::File', $file;
+$o = tie @a, 'Tie::File', $file, recsep => 'blah';
 print $o ? "ok $N\n" : "not ok $N\n";
 $N++;
 $n = @a;
@@ -32,7 +32,7 @@ untie @a;
 open F, "> $file" or die $!;
 print F $data;
 close F;
-$o = tie @a, 'Tie::File', $file;
+$o = tie @a, 'Tie::File', $file, recsep => 'blah';
 print $o ? "ok $N\n" : "not ok $N\n";
 $N++;
 $n = @a;
@@ -42,15 +42,15 @@ $N++;
 # STORESIZE
 # 6 Make it longer:
 $#a = 4;
-check_contents("$data$/$/");
+check_contents("${data}blahblah");
 
 # 7 Make it longer again:
 $#a = 6;
-check_contents("$data$/$/$/$/");
+check_contents("${data}blahblahblahblah");
 
 # 8 Make it shorter:
 $#a = 4;
-check_contents("$data$/$/");
+check_contents("${data}blahblah");
 
 # 9 Make it shorter again:
 $#a = 2;

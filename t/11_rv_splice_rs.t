@@ -5,7 +5,7 @@
 #
 
 my $file = "tf$$.txt";
-my $data = "rec0$/rec1$/rec2$/";
+my $data = "rec0blahrec1blahrec2blah";
 
 print "1..45\n";
 
@@ -13,7 +13,7 @@ my $N = 1;
 use Tie::File;
 print "ok $N\n"; $N++;  # partial credit just for showing up
 
-my $o = tie @a, 'Tie::File', $file;
+my $o = tie @a, 'Tie::File', $file, recsep => 'blah';
 print $o ? "ok $N\n" : "not ok $N\n";
 $N++;
 
@@ -141,7 +141,7 @@ sub init_file {
 # expected results are in @_
 sub check_result {
   my @x = @_;
-  chomp @r;
+  s/blah$// for @r;
   my $good = 1;
   $good = 0 unless @r == @x;
   for my $i (0 .. $#r) {

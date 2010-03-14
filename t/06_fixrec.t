@@ -13,11 +13,11 @@ print $o ? "ok $N\n" : "not ok $N\n";
 $N++;
 
 $a[0] = 'rec0';
-check_contents("rec0\n");
-$a[1] = "rec1\n";
-check_contents("rec0\nrec1\n");
-$a[2] = "rec2\n\n";             # should we detect this?
-check_contents("rec0\nrec1\nrec2\n\n");
+check_contents("rec0$/");
+$a[1] = "rec1$/";
+check_contents("rec0$/rec1$/");
+$a[2] = "rec2$/$/";             # should we detect this?
+check_contents("rec0$/rec1$/rec2$/$/");
 
 sub check_contents {
   my $x = shift;

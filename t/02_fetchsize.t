@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 
 my $file = "tf$$.txt";
-my $data = "rec1\nrec2\nrec3\n";
+my $data = "rec1$/rec2$/rec3$/";
 
 print "1..6\n";
 
