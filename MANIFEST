@@ -3,6 +3,7 @@ Makefile.PL
 t/01_gen.t
 t/02_fetchsize.t
 t/03_longfetch.t
+t/05_size.t
 README
 MANIFEST
 COPYING

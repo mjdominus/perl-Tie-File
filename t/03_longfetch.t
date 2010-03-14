@@ -6,7 +6,6 @@
 # (tests _fill_offsets_to() )
 #
 
-use lib '/home/mjd/src/perl/Tie-File2/lib';
 my $file = "tf$$.txt";
 my $data = "rec0\nrec1\nrec2\n";
 
@@ -34,6 +33,6 @@ for (2, 1, 0) {
 }
 
 END {
-  unlink $file;
+  1 while unlink $file;
 }
 

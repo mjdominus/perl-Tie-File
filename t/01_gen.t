@@ -1,6 +1,5 @@
 #!/usr/bin/perl
 
-use lib '/home/mjd/src/perl/Tie-File2/lib';
 my $file = "tf$$.txt";
 
 print "1..38\n";
@@ -85,6 +84,6 @@ sub check_contents {
 }
 
 END {
-  unlink $file;
+  1 while unlink $file;
 }
 

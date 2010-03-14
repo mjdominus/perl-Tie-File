@@ -1,6 +1,5 @@
 #!/usr/bin/perl
 
-use lib '/home/mjd/src/perl/Tie-File2/lib';
 my $file = "tf$$.txt";
 my $data = "rec1\nrec2\nrec3\n";
 
@@ -43,6 +42,6 @@ print $q eq $data ? "ok $N\n" : "not ok $N # n=$n\n";
 $N++;
 
 END {
-  unlink $file;
+  1 while unlink $file;
 }
 

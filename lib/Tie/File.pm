@@ -4,7 +4,7 @@ use Carp;
 use Fcntl ':seek', 'O_CREAT', 'O_RDWR';
 require 5.005;
 
-$VERSION = 0.01;
+$VERSION = 0.02;
 
 # Idea: The object will always contain an array of byte offsets
 # this will be filled in as is necessary and convenient.
@@ -155,6 +155,25 @@ sub FETCHSIZE {
   $n;
 }
 
+sub STORESIZE {
+  my ($self, $len) = @_;
+  my $olen = $self->FETCHSIZE;
+  return if $len == $olen;
+
+  # file gets longer
+  if ($len > $olen) {
+    $self->_extend_file_to($len-1);  # record numbers from 0 .. $len-1
+    return;
+  }
+
+  # file gets shorter
+  $self->_seek($len);
+  $self->_chop_file;
+  $#{$self->{offsets}} = $len-1;
+  my @cached = grep $_ > $len, keys %{$self->{cache}};
+  delete @{$self->{cache}}{@cached} if @cached;
+}
+
 # seek to the beginning of record #$n
 # Assumes that the offsets table is already correctly populated
 # Negative $n are taken to be record counts from the end
@@ -253,8 +272,9 @@ sub _cache_flush {
 
 # We have read to the end of the file and have the offsets table
 # entirely populated.  Now we need to write a new record beyond
-# the end of the file.  We prepare for this by writing 
+# the end of the file.  We prepare for this by writing
 # empty records into the file up to the position we want
+# $n here is the record number of the last record we're going to write
 sub _extend_file_to {
   my ($self, $n) = @_;
   $self->_seek(-1);             # position after the end of the last record
@@ -295,10 +315,15 @@ Tie::File - Access the lines of a disk file via a Perl array
 
 =head1 SYNOPSIS
 
+	# This file documents Tie::File version 0.02
+
 	tie @array, 'Tie::File', filename;
 
 	$array[13] = 'blah';     # line 13 of the file is now 'blah'
 	print $array[42];        # display line 42 of the file
+
+	$n_recs = @array;        # how many records are in the file?
+	$#array = $n_recs - 2;   # chop records off the end
 
 	untie @array;            # all finished
 
@@ -454,7 +479,7 @@ C<mjd-perl-tiefile-subscribe@plover.com>.
 
 =head1 LICENSE
 
-C<Tie::File> version 0.01 is copyright (C) 2002 Mark Jason Dominus.
+C<Tie::File> version 0.02 is copyright (C) 2002 Mark Jason Dominus.
 
 This program is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -479,12 +504,12 @@ For licensing inquiries, contact the author at:
 
 =head1 WARRANTY
 
-C<Tie::File> version 0.01 comes with ABSOLUTELY NO WARRANTY.
+C<Tie::File> version 0.02 comes with ABSOLUTELY NO WARRANTY.
 For details, see the license.
 
 =head1 TODO
 
-C<push>, C<pop>, C<shift>, C<unshift>, C<splice>, C<setsize>.
+C<push>, C<pop>, C<shift>, C<unshift>, C<splice>.
 
 More tests.  (Configuration options, cache flushery, alternative
 record separators.)
