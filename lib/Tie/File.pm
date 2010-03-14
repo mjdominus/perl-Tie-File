@@ -6,7 +6,8 @@ use POSIX 'SEEK_SET';
 use Fcntl 'O_CREAT', 'O_RDWR', 'LOCK_EX', 'O_WRONLY', 'O_RDONLY';
 sub O_ACCMODE () { O_RDONLY | O_RDWR | O_WRONLY }
 
-$VERSION = "0.92";
+
+$VERSION = "0.94";
 my $DEFAULT_MEMORY_SIZE = 1<<21;    # 2 megabytes
 my $DEFAULT_AUTODEFER_THRESHHOLD = 3; # 3 records
 my $DEFAULT_AUTODEFER_FILELEN_THRESHHOLD = 65536; # 16 disk blocksful
@@ -1667,7 +1668,7 @@ Tie::File - Access the lines of a disk file via a Perl array
 
 =head1 SYNOPSIS
 
-	# This file documents Tie::File version 0.92
+	# This file documents Tie::File version 0.94
 
 	tie @array, 'Tie::File', filename or die ...;
 
@@ -2052,6 +2053,18 @@ or
 Similarly, C<-E<gt>autodefer(1)> re-enables autodeferment, and 
 C<-E<gt>autodefer()> recovers the current value of the autodefer setting.
 
+=head1 CONCURRENT ACCESS TO FILES
+
+Caching and deferred writing are inappropriate if you want the same
+file to be accessed simultaneously from more than one process.  You
+will want to disable these features.  You can do that by including the
+C<memory =E<gt> 0> option in your C<tie> calls; this will inhibit
+caching and deferred writing.
+
+You will also want to lock the file while reading or writing it.  You
+can use the C<-E<gt>flock> method for this.  A future version of this
+module may provide an 'autolocking' mode.
+
 =head1 CAVEATS
 
 (That's Latin for 'warnings'.)
@@ -2162,7 +2175,7 @@ any news of importance, will be available at
 
 =head1 LICENSE
 
-C<Tie::File> version 0.92 is copyright (C) 2002 Mark Jason Dominus.
+C<Tie::File> version 0.94 is copyright (C) 2002 Mark Jason Dominus.
 
 This library is free software; you may redistribute it and/or modify
 it under the same terms as Perl itself.
@@ -2190,7 +2203,7 @@ For licensing inquiries, contact the author at:
 
 =head1 WARRANTY
 
-C<Tie::File> version 0.92 comes with ABSOLUTELY NO WARRANTY.
+C<Tie::File> version 0.94 comes with ABSOLUTELY NO WARRANTY.
 For details, see the license.
 
 =head1 THANKS
@@ -2208,6 +2221,7 @@ rest of the CPAN testers (for testing generally).
 
 Additional thanks to:
 Edward Avis /
+Mattia Barbon /
 Gerrit Haase /
 Nikola Knezevic /
 Nick Ing-Simmons /
