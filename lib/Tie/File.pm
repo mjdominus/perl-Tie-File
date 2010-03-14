@@ -2,10 +2,10 @@
 package Tie::File;
 use Carp;
 use POSIX 'SEEK_SET';
-use Fcntl 'O_CREAT', 'O_RDWR';
+use Fcntl 'O_CREAT', 'O_RDWR', 'LOCK_EX';
 require 5.005;
 
-$VERSION = "0.12";
+$VERSION = "0.14";
 
 # Idea: The object will always contain an array of byte offsets
 # this will be filled in as is necessary and convenient.
@@ -426,6 +426,17 @@ sub _bufsize {
   $b;
 }
 
+# Lock the file
+sub flock {
+  my ($self, $op) = @_;
+  unless (@_ <= 3) {
+    my $pack = ref $self;
+    croak "Usage: $pack\->flock([OPERATION])";
+  }
+  my $fh = $self->{fh};
+  $op = LOCK_EX unless defined $op;
+  flock $fh, $op;
+}
 
 # Given a file, make sure the cache is consistent with the
 # file contents
@@ -434,6 +445,7 @@ sub _check_integrity {
   my $good = 1; 
   local *F;
   open F, $file or die "Couldn't open file $file: $!";
+  binmode F;
   local $/ = $self->{recsep};
   unless ($self->{offsets}[0] == 0) {
     $warn && print STDERR "# rec 0: offset <$self->{offsets}[0]> s/b 0!\n";
@@ -498,7 +510,7 @@ Tie::File - Access the lines of a disk file via a Perl array
 
 =head1 SYNOPSIS
 
-	# This file documents Tie::File version 0.12
+	# This file documents Tie::File version 0.14
 
 	tie @array, 'Tie::File', filename or die ...;
 
@@ -627,8 +639,35 @@ The C<tie> call returns an object, say C<$o>.  You may call
 	$rec = $o->FETCH($n);
 	$o->STORE($n, $rec);
 
-to fetch or store the record at line C<$n>, respectively.  There are
-no other public methods in this package.
+to fetch or store the record at line C<$n>, respectively.  The only other public method in this package is:
+
+=head2 C<flock>
+
+	$o->flock(MODE)
+
+will lock the tied file.  C<MODE> has the same meaning as the second
+argument to the Perl built-in C<flock> function; for example
+C<LOCK_SH> or C<LOCK_EX | LOCK_NB>.  (These constants are provided by
+the C<use Fcntl ':flock'> declaration.)
+
+C<MODE> is optional; C<< $o->flock >> simply locks the file with
+C<LOCK_EX>.
+
+The best way to unlock a file is to discard the object and untie the
+array.  It is probably unsafe to unlock the file without also untying
+it, because if you do, changes may remain unwritten inside the object.
+That is why there is no shortcut for unlocking.  If you really want to
+unlock the file prematurely, you know what to do; if you don't know
+what to do, then don't do it.
+
+All the usual warnings about file locking apply here.  In particular,
+note that file locking in Perl is B<advisory>, which means that
+holding a lock will not prevent anyone else from reading, writing, or
+erasing the file; it only prevents them from getting another lock at
+the same time.  Locks are analogous to green traffic lights: If you
+have a green light, that does not prevent the idiot coming the other
+way from plowing into you sideways; it merely guarantees to you that
+the idiot does not also have a green light at the same time.
 
 =head1 CAVEATS
 
@@ -692,7 +731,7 @@ C<mjd-perl-tiefile-subscribe@plover.com>.
 
 =head1 LICENSE
 
-C<Tie::File> version 0.12 is copyright (C) 2002 Mark Jason Dominus.
+C<Tie::File> version 0.14 is copyright (C) 2002 Mark Jason Dominus.
 
 This program is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -717,20 +756,18 @@ For licensing inquiries, contact the author at:
 
 =head1 WARRANTY
 
-C<Tie::File> version 0.12 comes with ABSOLUTELY NO WARRANTY.
+C<Tie::File> version 0.14 comes with ABSOLUTELY NO WARRANTY.
 For details, see the license.
 
 =head1 TODO
 
 C<push>, C<pop>, C<shift>, C<unshift>.
 
-More tests.  (Configuration options, cache flushery.  _twrite shoule
-be tested separately, because there are a lot of weird special cases
-lurking in there.)
+More tests.  (Configuration options, cache flushery, locking.  _twrite
+should be tested separately, because there are a lot of weird special
+cases lurking in there.)
 
 More tests.  (Stuff I didn't think of yet.)
-
-File locking.
 
 Deferred writing. (!!!)
 
