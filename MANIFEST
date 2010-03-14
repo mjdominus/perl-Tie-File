@@ -1,3 +1,4 @@
+MANIFEST
 lib/Tie/File.pm
 Makefile.PL
 t/01_gen.t
@@ -5,7 +6,9 @@ t/02_fetchsize.t
 t/03_longfetch.t
 t/04_splice.t
 t/05_size.t
-t/06_ro.t
+t/06_fixrec.t
+t/07_rv_splice.t
+t/08_ro.t
 README
-MANIFEST
+WHATSNEW
 COPYING

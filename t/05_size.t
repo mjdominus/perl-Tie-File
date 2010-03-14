@@ -4,7 +4,6 @@
 # PUSH POP SHIFT UNSHIFT
 #
 
-use lib '/home/mjd/src/perl/Tie-File2/lib';
 my $file = "tf$$.txt";
 my $data = "rec0\nrec1\nrec2\n";
 my ($o, $n);

@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 #
 # Check SPLICE function's effect on the file
-# (07_splice_ret.t checks its return value)
+# (07_rv_splice.t checks its return value)
 #
 # Each call to 'check_contents' actually performs two tests.
 # First, it calls the tied object's own 'check_integrity' method,
@@ -13,7 +13,6 @@
 use lib '/home/mjd/src/perl/Tie-File2/lib';
 my $file = "tf$$.txt";
 my $data = "rec0\nrec1\nrec2\n";
-alarm 3 unless $^P;
 
 print "1..88\n";
 
@@ -103,10 +102,6 @@ splice(@a, 3, 2);               # delete more than one
 check_contents("$data");
 
 # (63-82) splicing with negative subscript
-# actually I think the 'expected results' data here is wrong
-# because you didn't think correctly about what -1 would mean.
-# @a = (0,1,2); splice(@a, -1, 1, 'blah') produces (0,1,'blah').
-# @a = (0,1,2); splice(@a, -1, 0, 'blah') produces (0,1,'blah', 2).
 splice(@a, -1, 0, "rec4");
 check_contents("rec0\nrec1\nrec4\nrec2\n");
 splice(@a, -1, 1, "rec5");       # same length
@@ -152,7 +147,7 @@ sub init_file {
 sub check_contents {
   my $x = shift;
   local *FH;
-  my $integrity = $o->_check_integrity($file);
+  my $integrity = $o->_check_integrity($file, $ENV{INTEGRITY});
   print $integrity ? "ok $N\n" : "not ok $N\n";
   $N++;
   my $open = open FH, "< $file";

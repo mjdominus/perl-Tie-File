@@ -3,7 +3,6 @@
 # Make sure it works to open the file in read-only mode
 #
 
-use lib '/home/mjd/src/perl/Tie-File2/lib';
 my $file = "tf$$.txt";
 
 print "1..9\n";

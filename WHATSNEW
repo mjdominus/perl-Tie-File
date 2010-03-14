@@ -1,0 +1,13 @@
+
+What's new in version 0.10:
+
+  SPLICE method supported.  Many minor changes.
+
+What's new in version 0.02:
+
+  STORESIZE method implements $#array = $n.
+
+What's new in version 0.01:
+
+  This is the initial release.
+

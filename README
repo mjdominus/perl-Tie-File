@@ -1,4 +1,8 @@
 
+What's new in version 0.10:
+
+  SPLICE method supported.  Many minor changes.
+
 What's new in version 0.02:
 
   STORESIZE method implements $#array = $n.
@@ -7,21 +11,24 @@ What's new in version 0.01:
 
   This is the initial release.
 
-
 ----------------------------------------------------------------
+
 NAME
     Tie::File - Access the lines of a disk file via a Perl array
 
 SYNOPSIS
-            # This file documents Tie::File version 0.02
+            # This file documents Tie::File version 0.10
 
-            tie @array, 'Tie::File', filename;
+            tie @array, 'Tie::File', filename or die ...;
 
             $array[13] = 'blah';     # line 13 of the file is now 'blah'
             print $array[42];        # display line 42 of the file
 
             $n_recs = @array;        # how many records are in the file?
             $#array = $n_recs - 2;   # chop records off the end
+
+            # As you would expect
+            @old_recs = splice @array, 3, 7, new recs...;
 
             untie @array;            # all finished
 
@@ -50,12 +57,12 @@ DESCRIPTION
     This says that records are delimited by the string `es'. If the
     file contained the following data:
 
-            These pesky flies!\n
+            Curse these pesky flies!\n
 
 
     then the `@array' would appear to have four elements:
 
-            "Thes"
+            "Curse thes"
             "e pes"
             "ky flies"
             "!\n"
@@ -96,11 +103,20 @@ DESCRIPTION
     flags. For example:
 
             # open the file if it exists, but fail if it does not exist
+            use Fcntl 'O_RDWR';
             tie @array, 'Tie::File', $file, mode => O_RDWR;
 
+            # create the file if it does not exist
+            use Fcntl 'O_RDWR', 'O_CREAT';
+            tie @array, 'Tie::File', $file, mode => O_RDWR | O_CREAT;
 
-    Opening the data file in read-only, write-only, or append mode
-    is not supported.
+            # open an existing file in read-only mode
+            use Fcntl 'O_RDONLY';
+            tie @array, 'Tie::File', $file, mode => O_RDONLY;
+
+
+    Opening the data file in write-only or append mode is not
+    supported.
 
   `cachesize'
 
@@ -122,6 +138,12 @@ DESCRIPTION
     Setting the cache size to 0 will inhibit caching; records will
     be fetched from disk every time you examine them.
 
+  Option Format
+
+    `-mode' is a synonym for `mode'. `-recsep' is a synonym for
+    `recsep'. `-cachesize' is a synonym for `cachesize'. You get the
+    idea.
+
 Public Methods
     The `tie' call returns an object, say `$o'. You may call
 
@@ -138,9 +160,9 @@ CAVEATS
   Efficiency Note
 
     Every effort was made to make this module efficient.
-    Nevertheless, inserting a long record in the middle of a large
-    file will always be slow, because everytihing after the new
-    record must be copied forward towards the end of the file.
+    Nevertheless, changing the size of a record in the middle of a
+    large file will always be slow, because everything after the new
+    record must be move.
 
     In particular, note that:
 
@@ -168,6 +190,16 @@ CAVEATS
     list. These defects are probably minor; in any event, they will
     be fixed in a later version of the module.
 
+  Efficiency Note 3
+
+    The author has supposed that since this module is concerned with
+    file I/O, almost all normal use of it will be heavily I/O bound,
+    and that the time to maintain complicated data structures inside
+    the module will be dominated by the time to actually perform the
+    I/O. This suggests, for example, that and LRU read-cache is a
+    good tradeoff, even if it requires substantial adjustment
+    following a `splice' operation.
+
   Missing Methods
 
     The tied array does not yet support `push', `pop', `shift',
@@ -185,7 +217,7 @@ AUTHOR
     subscribe@plover.com'.
 
 LICENSE
-    `Tie::File' version 0.02 is copyright (C) 2002 Mark Jason
+    `Tie::File' version 0.10 is copyright (C) 2002 Mark Jason
     Dominus.
 
     This program is free software; you can redistribute it and/or
@@ -211,22 +243,25 @@ LICENSE
 
 
 WARRANTY
-    `Tie::File' version 0.02 comes with ABSOLUTELY NO WARRANTY. For
+    `Tie::File' version 0.10 comes with ABSOLUTELY NO WARRANTY. For
     details, see the license.
 
 TODO
-    `push', `pop', `shift', `unshift', `splice'.
+    `push', `pop', `shift', `unshift'.
 
     More tests. (Configuration options, cache flushery, alternative
-    record separators.)
+    record separators. _twrite shoule be tested separately, because
+    there are a lot of weird special cases lurking in there.)
 
     More tests. (Stuff I didn't think of yet.)
 
     File locking.
 
-    Deferred writing.
+    Deferred writing. (!!!)
 
     Paragraph mode?
 
     More tests.
+
+    Fixed-length mode.
 

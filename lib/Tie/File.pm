@@ -4,7 +4,7 @@ use Carp;
 use Fcntl ':seek', 'O_CREAT', 'O_RDWR';
 require 5.005;
 
-$VERSION = 0.03;
+$VERSION = "0.10";
 
 # Idea: The object will always contain an array of byte offsets
 # this will be filled in as is necessary and convenient.
@@ -46,6 +46,9 @@ sub TIEARRAY {
   $opts{filename} = $file;
   $opts{recsep} = $/ unless defined $opts{recsep};
   $opts{recseplen} = length($opts{recsep});
+  if ($opts{recseplen} == 0) {
+    croak "Empty record separator not supported by $pack";
+  }
 
   my $mode = defined($opts{mode}) ? $opts{mode} : O_CREAT|O_RDWR;
 
@@ -183,10 +186,9 @@ sub SPLICE {
   # that knows that the file does indeed start at 0.
   $self->{offsets}[0] = 0 unless @{$self->{offsets}};
 
-  # update the read cache part 1
+  # update the read cache, part 1
   # modified records
-  # I think this part is wrong---it doesn't
-  # fix the entire read cache
+  # Consider this carefully for correctness
   for ($pos .. $pos+$nrecs-1) {
     my $cached = $self->{cache}{$_};
     next unless defined $cached;
@@ -199,8 +201,29 @@ sub SPLICE {
       $self->{cached} -= length($cached);
     }
   }
+  # update the read cache, part 2
+  # moved records - records past the site of the change
+  # need to be renumbered
+  # Maybe merge this with the previous block?
+  for (keys %{$self->{cache}}) {
+    next unless $_ >= $pos + $nrecs;
+    $self->{cache}{$_-$nrecs+@data} = delete $self->{cache}{$_};
+  }
 
-  #todo: fix the LRU cache
+  # fix the LRU queue
+  my(@new, @changed);
+  for (@{$self->{lru}}) {
+    if ($_ >= $pos + $nrecs) {
+      push @new, $_ + @data - $nrecs;
+    } elsif ($_ >= $pos) {      
+      push @changed, $_ if $_ < $pos + @data;
+    } else {
+      push @new, $_;
+    }
+  }
+  @{$self->{lru}} = (@new, @changed);
+
+  @result;
 }
 
 # write data into the file
@@ -357,11 +380,10 @@ sub _check_cache {
 sub _cache_flush {
   my ($self) = @_;
   while ($self->{cached} > $self->{cachesize}) {
-    my $lru = pop @{$self->{lru}};
+    my $lru = shift @{$self->{lru}};
     $self->{cached} -= length $lru;
     delete $self->{cache}{$lru};
   }
-  # Now either there's only 
 }
 
 # We have read to the end of the file and have the offsets table
@@ -431,6 +453,41 @@ sub _check_integrity {
       $warn && print STDERR "# rec $n: cached <$cached> actual <$_>\n";
     }
   }
+
+  my $cachesize = 0;
+  while (my ($n, $r) = each %{$self->{cache}}) {
+    $cachesize += length($r);
+    next if $n+1 <= $.;         # checked this already
+    $warn && print STDERR "# spurious caching of record $n\n";
+    $good = 0;
+  }
+  if ($cachesize != $self->{cached}) {
+    $warn && print STDERR "# cache size is $self->{cached}, should be $cachesize\n";
+    $good = 0;
+  }
+
+  my (%seen, @duplicate);
+  for (@{$self->{lru}}) {
+    $seen{$_}++;
+    if (not exists $self->{cache}{$_}) {
+      print "# $_ is mentioned in the LRU queue, but not in the cache\n";
+      $good = 0;
+    }
+  }
+  @duplicate = grep $seen{$_}>1, keys %seen;
+  if (@duplicate) {
+    my $records = @duplicate == 1 ? 'Record' : 'Records';
+    my $appear  = @duplicate == 1 ? 'appears' : 'appear';
+    print "# $records @duplicate $appear multiple times in LRU queue: @{$self->{lru}}\n";
+    $good = 0;
+  }
+  for (keys %{$self->{cache}}) {
+    unless (exists $seen{$_}) {
+      print "# $record $_ is in the cache but not the LRU queue\n";
+      $good = 0;
+    }
+  }
+
   $good;
 }
 
@@ -440,7 +497,7 @@ Tie::File - Access the lines of a disk file via a Perl array
 
 =head1 SYNOPSIS
 
-	# This file documents Tie::File version 0.03
+	# This file documents Tie::File version 0.10
 
 	tie @array, 'Tie::File', filename or die ...;
 
@@ -480,10 +537,9 @@ This says that records are delimited by the string C<es>.  If the file contained
 
 	Curse these pesky flies!\n
 
-then the C<@array> would appear to have five elements: 
+then the C<@array> would appear to have four elements: 
 
-	"Curse"
-	" thes"
+	"Curse thes"
 	"e pes"
 	"ky flies"
 	"!\n"
@@ -520,8 +576,6 @@ change this, you may supply alternative flags in the C<mode> option.
 See L<Fcntl> for a listing of available flags.
 For example:
 
-
-
 	# open the file if it exists, but fail if it does not exist
 	use Fcntl 'O_RDWR';
 	tie @array, 'Tie::File', $file, mode => O_RDWR;
@@ -553,6 +607,12 @@ cache by supplying the C<cachesize> option.  The argument is the desired cache s
 
 Setting the cache size to 0 will inhibit caching; records will be
 fetched from disk every time you examine them.
+
+=head2 Option Format
+
+C<-mode> is a synonym for C<mode>.  C<-recsep> is a synonym for
+C<recsep>.  C<-cachesize> is a synonym for C<cachesize>.  You get the
+idea.
 
 =head1 Public Methods
 
@@ -598,6 +658,16 @@ search.  The cache's LRU queue should be a heap instead of a list.
 These defects are probably minor; in any event, they will be fixed in
 a later version of the module.
 
+=head2 Efficiency Note 3
+
+The author has supposed that since this module is concerned with file
+I/O, almost all normal use of it will be heavily I/O bound, and that
+the time to maintain complicated data structures inside the module
+will be dominated by the time to actually perform the I/O.  This
+suggests, for example, that and LRU read-cache is a good tradeoff,
+even if it requires substantial adjustment following a C<splice>
+operation.
+
 =head2 Missing Methods
 
 The tied array does not yet support C<push>, C<pop>, C<shift>,
@@ -616,7 +686,7 @@ C<mjd-perl-tiefile-subscribe@plover.com>.
 
 =head1 LICENSE
 
-C<Tie::File> version 0.03 is copyright (C) 2002 Mark Jason Dominus.
+C<Tie::File> version 0.10 is copyright (C) 2002 Mark Jason Dominus.
 
 This program is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -641,7 +711,7 @@ For licensing inquiries, contact the author at:
 
 =head1 WARRANTY
 
-C<Tie::File> version 0.03 comes with ABSOLUTELY NO WARRANTY.
+C<Tie::File> version 0.10 comes with ABSOLUTELY NO WARRANTY.
 For details, see the license.
 
 =head1 TODO
