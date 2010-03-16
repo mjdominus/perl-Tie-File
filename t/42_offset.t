@@ -2,12 +2,12 @@
 
 # 2003-04-09 Tels: test the offset method from 0.94
 
-use Test::More;
 use strict;
 use File::Spec;
 
 use POSIX 'SEEK_SET';
 my $file = "tf$$.txt";
+my $N = 1;
 
 BEGIN
   {
@@ -21,10 +21,37 @@ BEGIN
   chdir 't' if -d 't';
   print "# INC = @INC\n";
 
-  plan tests => 24;
+  print "1..24\n";
 
-  use_ok ('Tie::File');
   }
+
+use Tie::File;
+is(1,1,"Partial credit for showing up.");
+
+sub is ($$;$) {
+  my ($a, $x, $r) = @_;
+  if (! defined $x) {
+    if (! defined $a) {
+      $a = $x = 'undef';
+    } else {
+      $x = "undef";
+      $a = "'$a'";
+    }
+  } elsif  (! defined $a) {
+    $a = "undef";
+    $x = "'$x'";
+  }
+
+  if ($a eq $x) { print "ok $N\n" 
+  } else { 
+    if ($r eq "") {
+      print "not ok $N  # expected $x, got $a\n";
+    } else {
+      print "not ok $N  # $r: expected $x, got $a\n";
+    }
+  }
+  $N++;
+}
 
 $/ = "#";	# avoid problems with \n\r vs. \n
 
