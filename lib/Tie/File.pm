@@ -93,7 +93,7 @@ sub TIEARRAY {
     unless (seek $file, 1, SEEK_SET) {
       croak "$pack: your filehandle does not appear to be seekable";
     }
-    seek $file, 0, SEEK_SET     # put it back
+    seek $file, 0, SEEK_SET;    # put it back
     $fh = $file;                # setting binmode is the user's problem
   } elsif (ref $file) {
     croak "usage: tie \@array, $pack, filename, [option => value]...";
