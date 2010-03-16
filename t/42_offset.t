@@ -4,6 +4,7 @@
 
 use strict;
 use File::Spec;
+sub is ($$;$) ;
 
 use POSIX 'SEEK_SET';
 my $file = "tf$$.txt";
