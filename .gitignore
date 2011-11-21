@@ -3,6 +3,9 @@ blib/
 pm_to_blib
 /MYMETA.json
 /MYMETA.yml
-/*.tar.gz
+*.tar.gz
 /Tie-File-[01].*
 /.build/
+\#*\#
+
+
