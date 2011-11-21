@@ -1,0 +1,21 @@
+
+Some extra notes about uses of Tie::File.
+
+Suppose you want to sort a file.  Doing this will work:
+
+        @LINES = sort @LINES;
+
+but it has the drawback that it reads the entire file into memory,
+sorts it, and writes back the sorted data.  
+
+A possible alternative would be to code a sort manually:
+
+        sub qsort (\@) {
+          my ($aref, $lo, $hi) = @_;
+          unless defined ($lo) {
+            $lo = 0;  $hi = $#$aref;
+          }
+          return if $hi < $lo + 1;
+
+          
+        }

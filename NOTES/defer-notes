@@ -1,0 +1,189 @@
+
+Notes on deferred writing feature
+
+20020221
+
+1. You need a writing function twrite(str, pos, len) which writes
+   'str' at position 'pos' in the file, overwriting the first 'len'
+   bytes it finds, and moving everything from pos+len downwards by
+   length(str)-len.  STORE already has the code for this, but it
+   should be moved out into a separate subroutine so it can be shared
+   by other functions, esp. SPLICE.
+
+2. When deferred records are flushed, ->flush can look over the
+   deferlog, sort it, and combine adjacent records.  It then calls
+   twrite once for each contiguous block of deferred records.  In the
+   common case, this will mean only one call.  In the case of
+   rewriting every record in the file, the file will be rewritten with
+   a single call to 'print'.
+
+3. User expecations will vary depending on whather you name the defer
+   flusher 'flush' or 'commit'.  'commit' is cute, but a bad idea for
+   two reasons:  
+
+   1.  People will expect it to be atomic, but it's not atomic.
+
+   2. [0] = '0'; defer; [0] = 'x'; print [0].  
+      People will expect '0', since 'x' was not 'committed', but you
+      plan to have it deliver 'x'.
+
+   Use 'discard' instead of 'rollback'.
+
+4. It appears that the code to perform a deferred write is almost as
+   simple as:
+
+        $self->{deferred}{$n} = $rec;
+
+   !! Well, almost, but not quite.  See below.
+
+5. You will need to have a bound on the size of the defer, and
+   autoflush it when it becomes too large.  If the user limits memory
+   to 'cachesize', the size of the read cache + size of defer should
+   not exceed cachesize.
+
+6. Suppose the defer gets too big.  What do you do?  Expire from the
+   defer?  From the readcache?  Flush immediately?
+
+   Well, you can NEVER expire from the defer, because that discards
+   write requests without writing.  I prefer the expiring from the
+   readcache, and flushing as a last resort.
+
+7. How is the cache size controlled?  You originally thought of having
+   the user define the sizes of the readcache and the defer
+   separately.  This is a bad move, because if they have 2Mib they
+   want to allocate to caching, they have no way to do
+   that---allocating 1 MiB to each results in early readcache expiry
+   and early defer flushing.
+
+   Instead, perhaps let them specify the defer-size and the total
+   size.  If the defer-size is larger than the total size, the total
+   size will silently be set to the defer-size.
+
+8. Should defer; [n] = rec; remove [n] from the readcache if it is
+   present?  (FETCH will search the defer before the readcache anyway,
+   so FETCH performance may not be affected.)  Answer: No, it
+   shouldn't, because if it does, then the LRU information on [n] will
+   be lost when the defer is flushed, and [n] might have been a very
+   frequently-accessed record.
+
+9. Items in the defer will INCLUDE the recsep.  This has two benefits:
+
+   1. It will be easier to combine multiple adjacent records when
+      flushing.  
+
+   2. It enables the following SPLICE trick:
+
+9. SPLICE can be implemented using a trick.  Short version: Tamper the
+   defer and fiddle the offsets.
+
+   Suppose we want SPLICE to destroy some records. It can set those
+   records to '' in the defer and then call twrite.  Then it
+   downshifts the tail of the offsets array (using 'splice'!) and
+   decrements the key numbers in the readcache.
+
+   Similarly, suppose we want SPLICE to insert some records after
+   position [n].  It can simply sppend the records to [n] and stick it
+   in the defer; then call twrite. Then it upshifts the tail of the
+   offsets array and increments the key numbers in the readcache.
+
+10. How do you handle deferred splicing?  Perhaps setting the records
+    to '' still works, but then you have to postpone fiddling the
+    offsets until flush time.
+
+    Think about this carefully.  See #12 below.
+   
+11. Perhaps POP and PUSH should be separately optimized instead of
+    going through SPLICE.  Then again, SPLICE/defer/twrite may handle
+    this case nearly optimally with no special case.
+
+12. Say defer is enabled and I want to splice out records 2-4.
+    Perhaps I can install 2 => '', 3 => '', 4 => '' in the defer, and
+    then when ->flush is called, it can keep track of how many
+    newlines it has written in each record and adjust the cache and
+    offsets tables as necessary.  Yes, I think that will work just fine.
+
+
+20020322
+
+1. Having a separate cache for deferred writes seems to have been a
+   bad idea.  Then you run into confusing issues about its
+   relationship to the read cache.  For example, inserting a document
+   into the deferbuffer should or should not delete the corresponding
+   record from the read cache?  If you delete it, you lose the
+   information about the LRU position of that record.  If not, you
+   have to update the cache version of the record so that you don't
+   get old data from the cache when the buffer is flushed---but you
+   now have two identical copies.
+
+2. Better strategy: Deferred writes go into the read cache.  The
+   deferbufffer becomes a boolean hash that just lists the record
+   numbers that need to be written out.  
+
+3. When the read cache needs to be flushed, find the LRU
+   non-deferred-write record and flush that.  If there is none, commit
+   the writes.  Then don't flush the entire cache; just the LRU (which
+   is now no longer in the defer mark list.)
+
+4. Get write of dw_size and the documentation for it.  Get rid of 
+   deferred_s. 
+
+5. Here's a potential problem:  _flush uses _splice which calls _fetch
+   to get the length of the records being spliced out.  But _fetch
+   isn't returning the length of the records being spliced out; it's
+   returning the length of the records in the cache that are about to
+   be written!
+
+   You could refit _splice to use the offsets table directly in this
+   case.  But in general, it still needs to get the old records that
+   it will return as its return value.  In this case if it gets the
+   records from the cache, that's OK, because there are no deferred
+   records by this time, and the cache reflects the actual file
+   contents.
+
+   So it should use the offsets table for the legnth, and the cache for
+   the return values.
+
+20020324
+
+1. Here's the problem you thought of but couldn't remember from two
+   days ago.  When you come to do a 'discard', you don't know what
+   records to throw away from the cache, and you lose the old cached
+   data.  For example, suupose record 3 is "x".  Suppose you have 
+   3 => "x" in the cache.  Then you ->defer, $a[3] = "y", which
+   overwrites the cache with 3 => "y".  Then you ->discard.  You have
+   to throw away the 3 => "y", which means you've lost the cached data
+   for that record.  Under the old regime, you could have retained
+   this.  (Although you didn't.)
+
+2. I think this loss is probably OK.  ->discard will be rare.  And
+   not all the cached data is lost; just the data that you overwrote.
+   If you need to fix it later, you can probably work around it.
+
+3. For example, when a record is overwritte, you might buffer it.  On
+   a ->discard, the buffered records could be moved back into the
+   cache.  On a ->flush, they are thrown away.  If the cache becomes
+   full, these are thown away first.  It would be easy to manage since
+   it could be an array (recno, data, ...).
+
+4. Or would it be easy to manage?  Wouldn't you have to renumber it
+   for splice and the like? No, because splice flushes the deferred
+   writes and so discards the buffer.  What about in other cases?
+   
+5. Probably you would prefer a hash instead of an array, because the
+   result of $a[3] = "y"; $a[3] = "z"  would be that "x" would get
+   moved to this buffer on the first STORE, and then "y" would *not"
+   be so moved on the second STORE.  But you don't need a hash to
+   detect that---you were thinking that you would do
+
+        $self->{oldcache}{$n} = $self->{cached}{$n}
+          unless exists $self->{oldcache}{$n};
+
+   but that's wrong.  The correct logic is
+
+        push @{$self->{oldcache}}, $n, $self->{cached}{$n}
+          unless $self->{deferred}[$n];
+
+6. STORESIZE takes effect immediately, so the correct response is to
+   go through and dump all the old cache records that are now past the
+   end.  
+
