@@ -10,7 +10,7 @@
 my $file = "tf$$.txt";
 
 unless ($^O =~ /^(MSWin32|dos)$/) {
-  print "1..0\n";
+  print "1..0 # SKIP only used on MSWin32 and dos platforms\n";
   exit;
 }
 
