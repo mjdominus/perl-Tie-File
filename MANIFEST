@@ -1,5 +1,6 @@
 MANIFEST
 lib/Tie/File.pm
+lib/Tie/File/Hash.pm
 Makefile.PL
 t/00_version.t
 t/01_gen.t
@@ -39,6 +40,7 @@ t/33_defer_vs.t
 t/40_abs_cache.t
 t/41_heap.t
 t/42_offset.t
+t/50_tie_file_hash.t
 README
 WHATSNEW
 COPYING
