@@ -86,4 +86,14 @@ sub append_rec {
   return $#{$self->{tf}};
 }
 
+sub DELETE {
+  my ($self, $k) = @_;
+  return unless $self->found_key($k) || $self->find_key($k);
+  splice @{$self->{tf}}, $self->{keyrec}{$k}, 1;
+  my $pos = delete $self->{keyrec}{$k};
+  for my $k (keys %{$self->{keyrec}}) {
+    $self->{keyrec}{$k}-- if $self->{keyrec}{$k} > $pos;
+  }
+}
+
 1;

@@ -5,7 +5,7 @@ use Test::Deep;
 use Tie::File::Hash;
 use Fcntl;
 
-plan tests => 14;
+plan tests => 21;
 my $file = "tf$$.txt";
 
 {
@@ -25,10 +25,7 @@ my $file = "tf$$.txt";
 }
 untie %f;
 
-{
-    my @data = do { open my ($fh), "<", $file or die; <$fh> };
-    is_deeply(\@data, [ "1: 2\n", "2: 3\n", "3: 4\n" ], "raw file data");
-}
+check_file("1: 2\n", "2: 3\n", "3: 4\n");
 
 {
     ok(tie %f, 'Tie::File::Hash', $file, { mode => O_RDWR | O_CREAT });
@@ -41,6 +38,25 @@ untie %f;
     is ($f{1}, 2);
     is ($f{11}, "eleven");
     is ($f{2}, "foo2");
+}
+
+# Delete
+{
+  delete $f{2};
+  is ($f{2}, undef);
+  is ($f{11}, "eleven");
+  check_file("1: 2\n", "3: foo3\n", "11: eleven\n");
+  $f{2} = "two";
+  is ($f{1}, "2");
+  is ($f{2}, "two");
+  is ($f{3}, "foo3");
+  check_file("1: 2\n", "3: foo3\n", "11: eleven\n", "2: two\n");
+}
+
+sub check_file {
+  my (@x) = @_;
+  my @a = do { open my ($fh), "<", $file or die; <$fh> };
+  is_deeply(\@a, \@x, "raw file data");
 }
 
 END { untie %f; 1 while unlink $file }
