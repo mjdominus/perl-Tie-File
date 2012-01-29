@@ -11,9 +11,10 @@ $VERSION = "0.97";
 my $DEFAULT_MEMORY_SIZE = 1<<21;    # 2 megabytes
 my $DEFAULT_AUTODEFER_THRESHHOLD = 3; # 3 records
 my $DEFAULT_AUTODEFER_FILELEN_THRESHHOLD = 65536; # 16 disk blocksful
+my $DEFAULT_CACHE_HIT_THRESHHOLD = 1;
 
 my %good_opt = map {$_ => 1, "-$_" => 1}
-                 qw(memory dw_size mode recsep discipline 
+                 qw(memory dw_size mode recsep discipline
                     autodefer autochomp autodefer_threshhold concurrent);
 
 sub TIEARRAY {
@@ -55,8 +56,12 @@ sub TIEARRAY {
   $opts{deferred_s} = 0;        # count of total bytes in ->{deferred}
   $opts{deferred_max} = -1;     # empty
 
-  # What's a good way to arrange that this class can be overridden?
-  $opts{cache} = Tie::File::Cache->new($opts{memory});
+  $opts{cache_factory} ||= 'Tie::File::Cache';
+  $opts{cache} = $opts{cache_factory}->new($opts{memory});
+  $opts{readcount} = 0;
+  $opts{writecount} = 0;
+  $opts{cache_hit_threshhold} ||= $DEFAULT_CACHE_HIT_THRESHHOLD;
+  $opts{caching} ||= undef; # true = on, false but defined = forced off
 
   # autodeferment is enabled by default
   $opts{autodefer} = 1 unless defined $opts{autodefer};
@@ -158,8 +163,9 @@ sub _chomp1 {
 sub _fetch {
   my ($self, $n) = @_;
 
-  # check the record cache
-  { my $cached = $self->{cache}->lookup($n);
+  # check the record cache if caching is enabled
+  if ($self->{caching}) {
+    my $cached = $self->{cache}->lookup($n);
     return $cached if defined $cached;
   }
 
@@ -186,8 +192,12 @@ sub _fetch {
 #    }
 #  }
 
-  $self->{cache}->insert($n, $rec) if defined $rec && not $self->{flushing};
-  $rec;
+  $self->{cache}->insert($n, $rec) if $self->{caching} &&
+    defined $rec && not $self->{flushing};
+  $self->_maybe_enable_caching if
+    $self->{readcount}++ % 100 == 0 && ! defined $self->{caching};
+
+  return $rec;
 }
 
 sub STORE {
@@ -201,10 +211,10 @@ sub STORE {
   }
 
   return $self->_store_deferred($n, $rec) if $self->_is_deferring;
-
+  $self->{writecount}++;
 
   # We need this to decide whether the new record will fit
-  # It incidentally populates the offsets table 
+  # It incidentally populates the offsets table
   # Note we have to do this before we alter the cache
   # 20020324 Wait, but this DOES alter the cache.  TODO BUG?
   my $oldrec = $self->_fetch($n);
@@ -220,12 +230,12 @@ sub STORE {
   # length($oldrec) here is not consistent with text mode  TODO XXX BUG
   $self->_mtwrite($rec, $self->{offsets}[$n], length($oldrec));
   $self->_oadjust([$n, 1, $rec]);
-  $self->{cache}->update($n, $rec);
+  $self->{cache}->update($n, $rec) if $self->{caching};
 }
 
 sub _store_deferred {
   my ($self, $n, $rec) = @_;
-  $self->{cache}->remove($n);
+  $self->{cache}->remove($n) if $self->{caching};
   my $old_deferred = $self->{deferred}{$n};
 
   if (defined $self->{deferred_max} && $n > $self->{deferred_max}) {
@@ -236,11 +246,13 @@ sub _store_deferred {
   my $len_diff = length($rec);
   $len_diff -= length($old_deferred) if defined $old_deferred;
   $self->{deferred_s} += $len_diff;
-  $self->{cache}->adj_limit(-$len_diff);
-  if ($self->{deferred_s} > $self->{dw_size}) {
-    $self->_flush;
-  } elsif ($self->_cache_too_full) {
-    $self->_cache_flush;
+  if ($self->{caching}) {
+    $self->{cache}->adj_limit(-$len_diff);
+    if ($self->{deferred_s} > $self->{dw_size}) {
+      $self->_flush;
+    } elsif ($self->_cache_too_full) {
+      $self->_cache_flush;
+    }
   }
 }
 
@@ -257,7 +269,11 @@ sub _delete_deferred {
   }
 
   $self->{deferred_s} -= length $rec;
-  $self->{cache}->adj_limit(length $rec);
+  $self->{cache}->adj_limit(length $rec) if $self->{caching};
+}
+
+sub _maybe_enable_caching {
+  0; # TODO XXX
 }
 
 sub FETCHSIZE {
@@ -305,7 +321,8 @@ sub STORESIZE {
   $#{$self->{offsets}} = $len;
 #  $self->{offsets}[0] = 0;      # in case we just chopped this
 
-  $self->{cache}->remove(grep $_ >= $len, $self->{cache}->ckeys);
+  $self->{cache}->remove(grep $_ >= $len, $self->{cache}->ckeys)
+    if $self->{caching};
 }
 
 ### OPTIMIZE ME
@@ -347,8 +364,10 @@ sub CLEAR {
 
   $self->_seekb(0);
   $self->_chop_file;
+  if ($self->{caching}) {
     $self->{cache}->set_limit($self->{memory});
     $self->{cache}->empty;
+  }
   @{$self->{offsets}} = (0);
   %{$self->{deferred}}= ();
     $self->{deferred_s} = 0;
@@ -379,7 +398,7 @@ sub DELETE {
     $self->_seek($n);
     $self->_chop_file;
     $#{$self->{offsets}}--;
-    $self->{cache}->remove($n);
+    $self->{cache}->remove($n) if $self->{caching};
     # perhaps in this case I should also remove trailing null records?
     # 20020316
     # Note that delete @a[-3..-1] deletes the records in the wrong order,
@@ -489,7 +508,8 @@ sub _splice {
   # Adjust the offsets table
   $self->_oadjust([$pos, $nrecs, @data]);
 
-  { # Take this read cache stuff out into a separate function
+  if ($self->{caching}) {
+    # Take this read cache stuff out into a separate function
     # You made a half-attempt to put it into _oadjust.  
     # Finish something like that up eventually.
     # STORE also needs to do something similarish
@@ -504,7 +524,7 @@ sub _splice {
         $self->{cache}->remove($_);
       }
     }
-    
+
     # update the read cache, part 2
     # moved records - records past the site of the change
     # need to be renumbered
