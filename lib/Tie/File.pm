@@ -13,8 +13,9 @@ my $DEFAULT_AUTODEFER_THRESHHOLD = 3; # 3 records
 my $DEFAULT_AUTODEFER_FILELEN_THRESHHOLD = 65536; # 16 disk blocksful
 
 my %good_opt = map {$_ => 1, "-$_" => 1}
-                 qw(memory dw_size mode recsep discipline 
-                    autodefer autochomp autodefer_threshhold concurrent);
+                 qw(memory dw_size mode recsep discipline
+                    autodefer autochomp autodefer_threshhold concurrent
+                    cache_factory);
 
 sub TIEARRAY {
   if (@_ % 2 != 0) {
@@ -55,8 +56,8 @@ sub TIEARRAY {
   $opts{deferred_s} = 0;        # count of total bytes in ->{deferred}
   $opts{deferred_max} = -1;     # empty
 
-  # What's a good way to arrange that this class can be overridden?
-  $opts{cache} = Tie::File::Cache->new($opts{memory});
+  $opts{cache_factory} ||= "Tie::File::Cache::Autoenable";
+  $opts{cache} = $opts{cache_factory}->new($opts{memory});
 
   # autodeferment is enabled by default
   $opts{autodefer} = 1 unless defined $opts{autodefer};
@@ -1317,7 +1318,8 @@ sub _check_integrity {
   }
 
   my $cached = 0;
-  {
+  unless ($self->{cache}->is_fake_cache) {
+    # check cache contents against actual file contents
     local *F = $self->{fh};
     seek F, 0, SEEK_SET;
     local $. = 0;
@@ -1352,17 +1354,19 @@ sub _check_integrity {
     }
 
     my $deferring = $self->_is_deferring;
-    for my $n ($self->{cache}->ckeys) {
-      my $r = $self->{cache}->_produce($n);
-      $cached += length($r);
-      next if $n+1 <= $.;         # checked this already
-      _ci_warn("spurious caching of record $n");
-      $good = 0;
-    }
-    my $b = $self->{cache}->bytes;
-    if ($cached != $b) {
-      _ci_warn("cache size is $b, should be $cached");
-      $good = 0;
+    unless ($self->{cache}->is_fake_cache) {
+      for my $n ($self->{cache}->ckeys) {
+        my $r = $self->{cache}->_produce($n);
+        $cached += length($r);
+        next if $n+1 <= $.;         # checked this already
+        _ci_warn("spurious caching of record $n");
+        $good = 0;
+      }
+      my $b = $self->{cache}->bytes;
+      if ($cached != $b) {
+        _ci_warn("cache size is $b, should be $cached");
+        $good = 0;
+      }
     }
   }
 
@@ -1380,9 +1384,11 @@ sub _check_integrity {
   my $deferred_s = 0;
   while (my ($n, $r) = each %{$self->{deferred}}) {
     $deferred_s += length($r);
-    if (defined $self->{cache}->_produce($n)) {
-      _ci_warn("record $n is in the deferbuffer *and* the readcache");
-      $good = 0;
+    unless ($self->{cache}->is_fake_cache) {
+      if (defined $self->{cache}->_produce($n)) {
+        _ci_warn("record $n is in the deferbuffer *and* the readcache");
+        $good = 0;
+      }
     }
     if (substr($r, -$rsl) ne $rs) {
       _ci_warn("rec $n in the deferbuffer is missing the record separator");
@@ -1443,6 +1449,71 @@ sub _check_integrity {
 
 ################################################################
 #
+# Tie::File::Cache::Autoenable
+#
+# Try to figure out if caching is worth doing, turn it on if so.
+package Tie::File::Cache::Autoenable;
+$Tie::File::Cache::VERSION = $Tie::File::VERSION;
+my $CACHE_ENABLE_THRESHHOLD = 10;
+
+sub new {
+  my ($class, $max) = @_;
+  my $self = { reads => 0, writes => 0, max => $max, threshhold => $CACHE_ENABLE_THRESHHOLD };
+  bless $self => $class;
+}
+
+sub set_limit {
+  my ($self, $n) = @_;
+  $self->{max} = $n;
+}
+
+sub adj_limit {
+  my ($self, $n) = @_;
+  $self->{max} += $n;
+}
+
+sub insert {
+  my ($self, $key, $val) = @_;
+  $self->{writes}++;
+}
+
+sub update {
+  my ($self, $key, $val) = @_;
+  $self->{writes}++;
+}
+
+sub expire { }
+sub remove { }
+sub rekey { }
+sub reduce_size_to { }
+sub flush { }
+sub delink { }
+
+sub lookup {
+  my ($self, $key) = @_;
+  $self->{reads}++;
+  if ($self->{reads} / ($self->{reads} + $self->{writes}) >= $self->{threshhold}) {
+    my $new_cache = Tie::File::Cache->new($self->{max});
+    %$self = %$new_cache; # zOMG
+    bless $self => "Tie::File::Cache";
+    warn "### zOMG!!\n";
+  }
+  return;
+}
+
+sub empty {
+  my ($self) = @_;
+  $self->{reads} = $self->{writes} = 0;
+}
+
+sub is_empty { return 1; }
+sub ckeys { return () }
+sub bytes { return 0; }
+sub _check_integrity { return 1; }
+sub is_fake_cache { return 1; }
+
+################################################################
+#
 # Tie::File::Cache
 #
 # Read cache
@@ -1481,7 +1552,7 @@ sub set_limit {
 }
 
 # For internal use only
-# Will be called by the heap structure to notify us that a certain 
+# Will be called by the heap structure to notify us that a certain
 # piece of data has moved from one heap element to another.
 # $k is the hash key of the item
 # $n is the new index into the heap at which it is stored
@@ -1730,6 +1801,8 @@ sub delink {
   my $self = shift;
   $self->[HEAP] = undef;        # Bye bye heap
 }
+
+sub is_fake_cache { return 0; }
 
 ################################################################
 #

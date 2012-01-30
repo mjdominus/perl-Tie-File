@@ -23,7 +23,7 @@ open F, "> $file" or die $!;
 binmode F;
 print F $data;
 close F;
-$o = tie @a, 'Tie::File', $file;
+$o = tie @a, 'Tie::File', $file, cache_factory => "Tie::File::Cache" ;
 print $o ? "ok $N\n" : "not ok $N\n";
 $N++;
 
@@ -99,7 +99,9 @@ my $MAX = 47;
 #  -- that's enough space for 5 records, but not 6, on both \n and \r\n systems
 my $BUF = 20;
 #  -- that's enough space for 2 records, but not 3, on both \n and \r\n systems
-$o = tie @a, 'Tie::File', $file, memory => $MAX, dw_size => $BUF;
+$o = tie @a, 'Tie::File', $file, memory => $MAX, dw_size => $BUF, 
+    cache_factory => "Tie::File::Cache" ;
+
 print $o ? "ok $N\n" : "not ok $N\n";
 $N++;
 

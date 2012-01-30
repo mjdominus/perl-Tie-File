@@ -20,7 +20,7 @@ binmode F;
 print F $data;
 close F;
 
-my $o = tie @a, 'Tie::File', $file;
+my $o = tie @a, 'Tie::File', $file, cache_factory => "Tie::File::Cache" ;
 print $o ? "ok $N\n" : "not ok $N\n";
 $N++;
 
