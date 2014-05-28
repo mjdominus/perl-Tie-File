@@ -7,7 +7,7 @@ use Fcntl 'O_CREAT', 'O_RDWR', 'LOCK_EX', 'LOCK_SH', 'O_WRONLY', 'O_RDONLY';
 sub O_ACCMODE () { O_RDONLY | O_RDWR | O_WRONLY }
 
 
-$VERSION = "0.97";
+$VERSION = "1.00";
 my $DEFAULT_MEMORY_SIZE = 1<<21;    # 2 megabytes
 my $DEFAULT_AUTODEFER_THRESHHOLD = 3; # 3 records
 my $DEFAULT_AUTODEFER_FILELEN_THRESHHOLD = 65536; # 16 disk blocksful
@@ -656,7 +656,7 @@ sub _mtwrite {
       if (@_) {
         $unwritten = $self->_downcopy($data, $end, $_[1] - $end);
       } else {
-        # Make the file longer to accomodate the last segment that doesn'
+        # Make the file longer to accommodate the last segment that doesn't
         $unwritten = $self->_downcopy($data, $end);
       }
     }
@@ -727,6 +727,7 @@ sub _downcopy {
     last if $writable eq "";
     $self->_seekb($pos);
     $self->_write_record($writable);
+    last if $last_read_was_short && $data eq "";
     $len -= $readsize if defined $len;
     $pos += $readsize;
   }
@@ -1921,7 +1922,7 @@ sub set_val {
   return $oval;
 }
 
-# The hask key has changed for an item;
+# The hash key has changed for an item;
 # alter the heap's record of the hash key
 sub rekey {
   my ($self, $n, $new_key) = @_;
@@ -2009,7 +2010,7 @@ Tie::File - Access the lines of a disk file via a Perl array
 
 =head1 SYNOPSIS
 
-	# This file documents Tie::File version 0.97
+	# This file documents Tie::File version 0.98
 	use Tie::File;
 
 	tie @array, 'Tie::File', filename or die ...;
@@ -2361,7 +2362,7 @@ will be rewritten in a single pass.
 (Actually, the preceding discussion is something of a fib.  You don't
 need to enable deferred writing to get good performance for this
 common case, because C<Tie::File> will do it for you automatically
-unless you specifically tell it not to.  See L<"autodeferring">,
+unless you specifically tell it not to.  See L<"Autodeferring">,
 below.)
 
 Calling C<-E<gt>flush> returns the array to immediate-write mode.  If
@@ -2434,7 +2435,7 @@ support a C<concurrent =E<gt> 1> option that enables safe concurrent access.
 
 Previous versions of this documentation suggested using C<memory
 =E<gt> 0> for safe concurrent access.  This was mistaken.  Tie::File
-will not support safe concurrent access before version 0.98.
+will not support safe concurrent access before version 0.96.
 
 =head1 CAVEATS
 
@@ -2532,7 +2533,7 @@ any news of importance, will be available at
 
 =head1 LICENSE
 
-C<Tie::File> version 0.97 is copyright (C) 2003 Mark Jason Dominus.
+C<Tie::File> version 0.96 is copyright (C) 2003 Mark Jason Dominus.
 
 This library is free software; you may redistribute it and/or modify
 it under the same terms as Perl itself.
@@ -2549,8 +2550,8 @@ GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
 along with this library program; it should be in the file C<COPYING>.
-If not, write to the Free Software Foundation, Inc., 59 Temple Place,
-Suite 330, Boston, MA 02111 USA
+If not, write to the Free Software Foundation, Inc., 51 Franklin Street,
+Fifth Floor, Boston, MA  02110-1301, USA
 
 For licensing inquiries, contact the author at:
 
@@ -2560,7 +2561,7 @@ For licensing inquiries, contact the author at:
 
 =head1 WARRANTY
 
-C<Tie::File> version 0.97 comes with ABSOLUTELY NO WARRANTY.
+C<Tie::File> version 0.98 comes with ABSOLUTELY NO WARRANTY.
 For details, see the license.
 
 =head1 THANKS
@@ -2599,7 +2600,8 @@ Peter Scott /
 Peter Somu /
 Autrijus Tang (again) /
 Tels (again) /
-Juerd Waalboer
+Juerd Waalboer /
+Todd Rinaldo
 
 =head1 TODO
 
